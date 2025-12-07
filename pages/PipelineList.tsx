@@ -8,6 +8,19 @@ const PipelineList: React.FC = () => {
   const navigate = useNavigate();
   const [showTemplates, setShowTemplates] = useState(false);
 
+  const handleTemplateSelect = (template: typeof TEMPLATES[0]) => {
+    // Mock creating a new pipeline ID
+    const newId = `p-new-${Date.now()}`;
+    
+    // Navigate to the settings page with template state
+    navigate(`/pipeline/${newId}/edit`, {
+      state: {
+        templateStages: template.stages,
+        pipelineName: `My ${template.name} Pipeline`
+      }
+    });
+  };
+
   return (
     <Layout>
       <div className="p-6">
@@ -85,7 +98,11 @@ const PipelineList: React.FC = () => {
                 <div className="p-6 overflow-y-auto bg-gray-50/50">
                     <div className="grid grid-cols-3 gap-4">
                         {TEMPLATES.map((tpl) => (
-                            <div key={tpl.name} className="bg-white p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md cursor-pointer transition-all group">
+                            <div 
+                              key={tpl.name} 
+                              onClick={() => handleTemplateSelect(tpl)}
+                              className="bg-white p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md cursor-pointer transition-all group"
+                            >
                                 <div className="text-3xl mb-3">{tpl.icon}</div>
                                 <h4 className="font-bold text-gray-800 group-hover:text-blue-600">{tpl.name}</h4>
                                 <p className="text-sm text-gray-500 mt-1">{tpl.desc}</p>
@@ -95,7 +112,12 @@ const PipelineList: React.FC = () => {
                 </div>
                 <div className="p-4 border-t border-gray-200 flex justify-end gap-3 bg-white">
                     <button onClick={() => setShowTemplates(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md">Cancel</button>
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Create Empty</button>
+                    <button 
+                      onClick={() => handleTemplateSelect({ name: 'Empty', desc: '', icon: '', stages: [] })}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Create Empty
+                    </button>
                 </div>
             </div>
         </div>

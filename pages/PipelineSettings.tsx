@@ -1,6 +1,5 @@
-
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Icons } from '../components/Icons';
 import { SettingsTab, Stage, Job } from '../types';
@@ -9,13 +8,29 @@ import { DEFAULT_PIPELINE_DETAIL } from '../constants';
 const PipelineSettings: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<SettingsTab>('flow_config');
   const [yamlMode, setYamlMode] = useState(false);
   
-  // Initialize stages with default widths if not present
-  const [stages, setStages] = useState<Stage[]>(() => 
-    DEFAULT_PIPELINE_DETAIL.stages.map(s => ({ ...s, width: s.width || 320 }))
-  );
+  // Initialize from location state (template) or fallback to default
+  const [stages, setStages] = useState<Stage[]>(() => {
+    if (location.state && location.state.templateStages) {
+        return location.state.templateStages.map((s: Stage) => ({ ...s, width: s.width || 320 }));
+    }
+    // Deep copy to avoid mutating default immediately on load
+    return JSON.parse(JSON.stringify(DEFAULT_PIPELINE_DETAIL.stages)).map((s: Stage) => ({ ...s, width: s.width || 320 }));
+  });
+
+  const [pipelineName, setPipelineName] = useState(() => {
+    if (location.state && location.state.pipelineName) {
+        return location.state.pipelineName;
+    }
+    return DEFAULT_PIPELINE_DETAIL.name;
+  });
+
+  // --- Save State ---
+  const [isSaving, setIsSaving] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   // --- Drag and Drop State ---
   const [draggedJob, setDraggedJob] = useState<{ stageId: string, index: number } | null>(null);
@@ -23,7 +38,7 @@ const PipelineSettings: React.FC = () => {
   // --- Resizing State ---
   const [resizing, setResizing] = useState<{ stageId: string, startX: number, startWidth: number } | null>(null);
 
-  const mockYaml = `name: My-Java-Pipeline-01
+  const mockYaml = `name: ${pipelineName}
 stages:
   - name: Test
     jobs:
@@ -40,6 +55,28 @@ stages:
       - task: K8sDeploy
         namespace: production
 `;
+
+  // --- Save Handler ---
+  const handleSave = async () => {
+      setIsSaving(true);
+      
+      // Simulate network request
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Persist changes to the mock data "backend"
+      // In a real app, this would be a PUT/POST request
+      DEFAULT_PIPELINE_DETAIL.name = pipelineName;
+      // We perform a deep copy to ensure the reference is updated but data is preserved
+      DEFAULT_PIPELINE_DETAIL.stages = JSON.parse(JSON.stringify(stages));
+
+      setIsSaving(false);
+      setShowToast(true);
+
+      // Hide toast after 3 seconds
+      setTimeout(() => {
+          setShowToast(false);
+      }, 3000);
+  };
 
   // --- Resize Logic ---
   useEffect(() => {
@@ -116,7 +153,6 @@ stages:
     const destIndex = targetIndex !== undefined ? targetIndex : newStages[targetStageIdx].jobs.length;
     
     // Adjust index if we are moving within the same stage and moving down
-    // (native splice handles this mostly, but good to be aware)
     
     newStages[targetStageIdx].jobs.splice(destIndex, 0, movedJob);
 
@@ -182,7 +218,7 @@ stages:
 
   return (
     <Layout>
-      <div className="flex flex-col h-full bg-gray-50">
+      <div className="flex flex-col h-full bg-gray-50 relative">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3 shrink-0">
              <button onClick={() => navigate(`/pipeline/${id}`)} className="text-gray-500 hover:text-gray-900">
@@ -227,8 +263,13 @@ stages:
                                 <button className="text-gray-500 hover:text-gray-900 text-sm flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-200 transition-colors">
                                     <Icons.RotateCw size={14} /> Reset
                                 </button>
-                                <button className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 font-medium shadow-sm transition-colors">
-                                    <Icons.Save size={14} /> Save Changes
+                                <button 
+                                    onClick={handleSave}
+                                    disabled={isSaving}
+                                    className={`bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 font-medium shadow-sm transition-colors ${isSaving ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                >
+                                    {isSaving ? <Icons.RotateCw className="animate-spin" size={14} /> : <Icons.Save size={14} />}
+                                    {isSaving ? 'Saving...' : 'Save Changes'}
                                 </button>
                             </div>
                         </div>
@@ -370,18 +411,30 @@ stages:
                         <div className="space-y-6">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Pipeline Name</label>
-                                <input type="text" defaultValue="My-Java-Pipeline-01" className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow" />
+                                <input 
+                                  type="text" 
+                                  value={pipelineName}
+                                  onChange={(e) => setPipelineName(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow" 
+                                />
                             </div>
                              <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Pipeline ID</label>
                                 <div className="flex gap-2">
-                                    <input type="text" disabled defaultValue="p-001" className="flex-1 bg-gray-50 border border-gray-300 rounded-md px-4 py-2 text-sm text-gray-500" />
+                                    <input type="text" disabled defaultValue={id || "p-001"} className="flex-1 bg-gray-50 border border-gray-300 rounded-md px-4 py-2 text-sm text-gray-500" />
                                     <button className="text-gray-500 hover:bg-gray-100 p-2 rounded border border-gray-200"><Icons.FileText size={16} /></button>
                                 </div>
                                 <p className="text-xs text-gray-500 mt-1">Unique identifier for API usage.</p>
                             </div>
                             <div className="pt-4 border-t border-gray-100">
-                                <button className="bg-blue-600 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-blue-700 shadow-sm transition-colors">Save Changes</button>
+                                <button 
+                                    onClick={handleSave}
+                                    disabled={isSaving}
+                                    className={`bg-blue-600 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-blue-700 shadow-sm transition-colors flex items-center gap-2 ${isSaving ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                >
+                                     {isSaving && <Icons.RotateCw className="animate-spin" size={14} />}
+                                     {isSaving ? 'Saving...' : 'Save Changes'}
+                                </button>
                             </div>
                         </div>
                      </div>
@@ -466,6 +519,17 @@ stages:
                  )}
             </div>
         </div>
+
+        {/* Success Toast */}
+        {showToast && (
+            <div className="fixed top-20 right-6 bg-gray-900 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-3 z-50 animate-bounce-in">
+                <Icons.CheckCircle className="text-green-400" size={20} />
+                <div>
+                    <div className="font-medium text-sm">Configuration Saved</div>
+                    <div className="text-xs text-gray-400">Your pipeline flow has been updated.</div>
+                </div>
+            </div>
+        )}
       </div>
     </Layout>
   );

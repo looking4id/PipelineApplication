@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
@@ -5,6 +6,23 @@ import Terminal from '../components/Terminal';
 import { Icons, StatusIcon } from '../components/Icons';
 import { DEFAULT_PIPELINE_DETAIL, MOCK_HISTORY, MOCK_LOGS_JAVA } from '../constants';
 import { PipelineDetail, Job } from '../types';
+
+// Helper component for Job Type Icons
+const JobTypeIcon = ({ type, className = "w-4 h-4" }: { type: string, className?: string }) => {
+    switch (type) {
+        case 'build':
+            return <Icons.Hammer className={`text-orange-500 ${className}`} />;
+        case 'test':
+            return <Icons.FlaskConical className={`text-purple-500 ${className}`} />;
+        case 'scan':
+            return <Icons.Search className={`text-blue-500 ${className}`} />;
+        case 'deploy':
+            return <Icons.CloudUpload className={`text-green-600 ${className}`} />;
+        case 'custom':
+        default:
+            return <Icons.Code className={`text-gray-500 ${className}`} />;
+    }
+};
 
 const PipelineDetailView: React.FC = () => {
   const { id } = useParams();
@@ -256,7 +274,10 @@ const PipelineDetailView: React.FC = () => {
                                         `}
                                     >
                                         <div className="flex justify-between items-start">
-                                            <h4 className="font-bold text-gray-800 text-sm">{job.name}</h4>
+                                            <div className="flex items-center gap-2">
+                                                <JobTypeIcon type={job.type} className="w-4 h-4 opacity-70" />
+                                                <h4 className="font-bold text-gray-800 text-sm">{job.name}</h4>
+                                            </div>
                                             <StatusIcon status={job.status} />
                                         </div>
                                         <div className="mt-3 flex justify-between items-end">
@@ -303,7 +324,10 @@ const PipelineDetailView: React.FC = () => {
                     <tbody className="divide-y divide-gray-100">
                         {pipeline.stages.flatMap(stage => stage.jobs.map(job => ({...job, stageName: stage.name}))).map((job) => (
                             <tr key={job.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="py-4 px-6 text-sm font-medium text-gray-900">{job.name}</td>
+                                <td className="py-4 px-6 text-sm font-medium text-gray-900 flex items-center gap-3">
+                                    <JobTypeIcon type={job.type} />
+                                    {job.name}
+                                </td>
                                 <td className="py-4 px-6 text-sm text-gray-600">{job.stageName}</td>
                                 <td className="py-4 px-6 text-sm text-gray-600">
                                     <span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono uppercase">{job.type}</span>

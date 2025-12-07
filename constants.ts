@@ -1,4 +1,4 @@
-import { PipelineDetail, Pipeline } from './types';
+import { PipelineDetail, Pipeline, Stage } from './types';
 
 export const MOCK_PIPELINES: Pipeline[] = [
   {
@@ -112,10 +112,89 @@ export const DEFAULT_PIPELINE_DETAIL: PipelineDetail = {
 };
 
 export const TEMPLATES = [
-    { name: 'Java', desc: 'Java Spring Boot', icon: '☕' },
-    { name: 'Node.js', desc: 'React/Vue Build', icon: '🟢' },
-    { name: 'Go', desc: 'Go Microservice', icon: '🐹' },
-    { name: 'Python', desc: 'Django/Flask', icon: '🐍' },
+    { 
+      name: 'Java', 
+      desc: 'Java Spring Boot', 
+      icon: '☕',
+      stages: [
+        {
+          id: 't-java-s1', name: 'Code Check', width: 300, jobs: [
+            { id: 'j-java-scan', name: 'Java Code Scan', type: 'scan', status: 'pending', logs: [] },
+            { id: 'j-java-pmd', name: 'PMD Check', type: 'scan', status: 'pending', logs: [] }
+          ]
+        },
+        {
+          id: 't-java-s2', name: 'Build & Test', width: 300, jobs: [
+            { id: 'j-java-mvn', name: 'Maven Build', type: 'build', status: 'pending', logs: [] },
+            { id: 'j-java-unit', name: 'Unit Tests', type: 'test', status: 'pending', logs: [] }
+          ]
+        },
+        {
+          id: 't-java-s3', name: 'Deploy', width: 300, jobs: [
+            { id: 'j-java-deploy', name: 'Deploy to K8s', type: 'deploy', status: 'pending', logs: [] }
+          ]
+        }
+      ] as Stage[]
+    },
+    { 
+      name: 'Node.js', 
+      desc: 'React/Vue Build', 
+      icon: '🟢',
+      stages: [
+        {
+          id: 't-node-s1', name: 'Install', width: 300, jobs: [
+            { id: 'j-node-install', name: 'NPM Install', type: 'build', status: 'pending', logs: [] }
+          ]
+        },
+        {
+          id: 't-node-s2', name: 'Check', width: 300, jobs: [
+            { id: 'j-node-lint', name: 'ESLint', type: 'scan', status: 'pending', logs: [] },
+            { id: 'j-node-test', name: 'Jest Tests', type: 'test', status: 'pending', logs: [] }
+          ]
+        },
+        {
+          id: 't-node-s3', name: 'Build', width: 300, jobs: [
+            { id: 'j-node-build', name: 'Webpack Build', type: 'build', status: 'pending', logs: [] }
+          ]
+        }
+      ] as Stage[]
+    },
+    { 
+      name: 'Go', 
+      desc: 'Go Microservice', 
+      icon: '🐹',
+      stages: [
+        {
+          id: 't-go-s1', name: 'Build', width: 300, jobs: [
+            { id: 'j-go-build', name: 'Go Build', type: 'build', status: 'pending', logs: [] }
+          ]
+        },
+        {
+          id: 't-go-s2', name: 'Test', width: 300, jobs: [
+            { id: 'j-go-test', name: 'Go Test', type: 'test', status: 'pending', logs: [] },
+            { id: 'j-go-lint', name: 'GolangCI-Lint', type: 'scan', status: 'pending', logs: [] }
+          ]
+        }
+      ] as Stage[]
+    },
+    { 
+      name: 'Python', 
+      desc: 'Django/Flask', 
+      icon: '🐍',
+      stages: [
+        {
+            id: 't-py-s1', name: 'Dependencies', width: 300, jobs: [
+                { id: 'j-py-install', name: 'Pip Install', type: 'build', status: 'pending', logs: [] }
+            ]
+        },
+        {
+            id: 't-py-s2', name: 'Test', width: 300, jobs: [
+                { id: 'j-py-test', name: 'PyTest', type: 'test', status: 'pending', logs: [] },
+                { id: 'j-py-flake8', name: 'Flake8', type: 'scan', status: 'pending', logs: [] }
+            ]
+        }
+      ] as Stage[]
+    },
     { name: 'PHP', desc: 'Laravel/Symfony', icon: '🐘' },
     { name: '.NET', desc: 'ASP.NET Core', icon: '🔷' },
 ];
