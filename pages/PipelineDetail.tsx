@@ -3,53 +3,110 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import Terminal from '../components/Terminal';
 import { Icons, StatusIcon } from '../components/Icons';
-import { DEFAULT_PIPELINE_DETAIL, MOCK_HISTORY } from '../constants';
+import { DEFAULT_PIPELINE_DETAIL, MOCK_HISTORY, MOCK_LOGS_JAVA } from '../constants';
 import { PipelineDetail, Job } from '../types';
 
 const PipelineDetailView: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [pipeline, setPipeline] = useState<PipelineDetail>(DEFAULT_PIPELINE_DETAIL);
-  const [activeTab, setActiveTab] = useState<'flow'|'history'>('flow');
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [activeTab, setActiveTab] = useState<'flow'|'history'|'jobs'>('flow');
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
 
-  // Simulate run effect
+  // Derived state for the selected job to ensure it receives updates
+  const selectedJob = pipeline.stages
+    .flatMap(s => s.jobs)
+    .find(j => j.id === selectedJobId) || null;
+
+  // Simulate run progression
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
+    let timer1: ReturnType<typeof setTimeout>;
+    let timer2: ReturnType<typeof setTimeout>;
+
     if (isRunning) {
-       // Reset all to pending except first
-       const resetStages = pipeline.stages.map((stage, idx) => ({
-           ...stage,
-           jobs: stage.jobs.map(j => ({ ...j, status: idx === 0 ? 'running' as const : 'pending' as const }))
-       }));
-       setPipeline(prev => ({ ...prev, stages: resetStages, lastRunStatus: 'running' }));
+       // Reset all to pending except first, and CLEAR LOGS for a fresh run
+       setPipeline(prev => {
+           const resetStages = prev.stages.map((stage, idx) => ({
+               ...stage,
+               jobs: stage.jobs.map(j => ({ 
+                   ...j, 
+                   status: idx === 0 ? 'running' as const : 'pending' as const,
+                   logs: [] // Start with empty logs
+               }))
+           }));
+           return { ...prev, stages: resetStages, lastRunStatus: 'running' };
+       });
 
-       // Simulate progression
-       timer = setTimeout(() => {
-           setPipeline(prev => {
-                const updated = { ...prev };
-                // Finish first stage
-                updated.stages[0].jobs.forEach(j => j.status = 'success');
-                // Start second stage
-                updated.stages[1].jobs.forEach(j => j.status = 'running');
-                return updated;
-           });
+       // Progress to Stage 2 after delay
+       timer1 = setTimeout(() => {
+           setPipeline(prev => ({
+                ...prev,
+                stages: prev.stages.map((stage, idx) => {
+                    if (idx === 0) return { ...stage, jobs: stage.jobs.map(j => ({ ...j, status: 'success' as const })) };
+                    if (idx === 1) return { ...stage, jobs: stage.jobs.map(j => ({ ...j, status: 'running' as const })) };
+                    return stage;
+                })
+           }));
+       }, 2500);
 
-           setTimeout(() => {
-                setPipeline(prev => {
-                    const updated = { ...prev };
-                    updated.stages[1].jobs.forEach(j => j.status = 'success');
-                    // Fail last stage for drama
-                    updated.stages[2].jobs.forEach(j => j.status = 'failed');
-                    updated.lastRunStatus = 'failed';
-                    return updated;
-                });
-                setIsRunning(false);
-           }, 2000);
-       }, 1500);
+       // Finish execution
+       timer2 = setTimeout(() => {
+            setPipeline(prev => ({
+                ...prev,
+                stages: prev.stages.map((stage, idx) => {
+                    if (idx === 1) return { ...stage, jobs: stage.jobs.map(j => ({ ...j, status: 'success' as const })) };
+                    if (idx === 2) return { ...stage, jobs: stage.jobs.map(j => ({ ...j, status: 'failed' as const })) };
+                    return stage;
+                }),
+                lastRunStatus: 'failed'
+            }));
+            setIsRunning(false);
+       }, 5000);
     }
-    return () => clearTimeout(timer);
+    return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+    };
+  }, [isRunning]);
+
+  // Real-time log streaming effect
+  useEffect(() => {
+      if (!isRunning) return;
+
+      const interval = setInterval(() => {
+          setPipeline(prev => {
+              // Find if any job is running
+              const hasRunningJob = prev.stages.some(s => s.jobs.some(j => j.status === 'running'));
+              
+              if (!hasRunningJob) return prev;
+
+              return {
+                  ...prev,
+                  stages: prev.stages.map(stage => ({
+                      ...stage,
+                      jobs: stage.jobs.map(job => {
+                          if (job.status === 'running') {
+                              // Generate a simulated log line
+                              const randomLog = MOCK_LOGS_JAVA[Math.floor(Math.random() * MOCK_LOGS_JAVA.length)];
+                              const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+                              // Ensure clean formatting
+                              const cleanLog = randomLog.replace(/^\[.*?\]\s*/, ''); 
+                              const logLine = `[${timestamp}] [INFO] ${cleanLog}`;
+                              
+                              return {
+                                  ...job,
+                                  logs: [...job.logs, logLine]
+                              };
+                          }
+                          return job;
+                      })
+                  }))
+              };
+          });
+      }, 400); // Add a log line every 400ms
+
+      return () => clearInterval(interval);
   }, [isRunning]);
 
   const handleRun = () => {
@@ -66,7 +123,7 @@ const PipelineDetailView: React.FC = () => {
               <div className="flex flex-col">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                     {pipeline.name}
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${pipeline.lastRunStatus === 'success' ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${pipeline.lastRunStatus === 'success' ? 'bg-green-50 text-green-600 border-green-200' : pipeline.lastRunStatus === 'running' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
                         Last Run: {pipeline.lastRunStatus.toUpperCase()}
                     </span>
                 </h2>
@@ -103,6 +160,12 @@ const PipelineDetailView: React.FC = () => {
                 Flow Graph
             </button>
             <button 
+                className={`py-3 border-b-2 transition-colors ${activeTab === 'jobs' ? 'border-blue-600 text-blue-600' : 'border-transparent hover:text-gray-800'}`}
+                onClick={() => setActiveTab('jobs')}
+            >
+                Job Status
+            </button>
+            <button 
                 className={`py-3 border-b-2 transition-colors ${activeTab === 'history' ? 'border-blue-600 text-blue-600' : 'border-transparent hover:text-gray-800'}`}
                 onClick={() => setActiveTab('history')}
             >
@@ -131,53 +194,150 @@ const PipelineDetailView: React.FC = () => {
                     </div>
 
                     {/* Dynamic Stages */}
-                    {pipeline.stages.map((stage, idx) => (
-                        <div key={stage.id} className="relative flex flex-col gap-4">
-                            <div className="flex items-center gap-2 mb-2 text-gray-500 text-sm font-medium uppercase tracking-wider">
-                                <Icons.Clock size={14} /> {stage.name}
-                            </div>
-                            
-                            {stage.jobs.map((job) => (
-                                <div 
-                                    key={job.id} 
-                                    onClick={() => setSelectedJob(job)}
-                                    className={`w-72 bg-white rounded-lg border-l-4 shadow-sm hover:shadow-md cursor-pointer transition-all p-4 relative z-10 group
-                                        ${job.status === 'success' ? 'border-l-green-500' : 
-                                          job.status === 'failed' ? 'border-l-red-500' : 
-                                          job.status === 'running' ? 'border-l-blue-500' : 'border-l-gray-300'}
-                                    `}
-                                >
-                                    <div className="flex justify-between items-start">
-                                        <h4 className="font-bold text-gray-800 text-sm">{job.name}</h4>
-                                        <StatusIcon status={job.status} />
-                                    </div>
-                                    <div className="mt-3 flex justify-between items-end">
-                                        <div className="text-xs text-gray-500">{job.duration || '--'}</div>
-                                        <div className="flex gap-4 text-xs text-gray-400">
-                                            {job.stats && (
-                                                <>
-                                                    <span className="text-red-500 font-medium">{job.stats.errors} Errors</span>
-                                                    <span className="text-yellow-600">{job.stats.warnings} Warn</span>
-                                                </>
-                                            )}
+                    {pipeline.stages.map((stage, idx) => {
+                        // Calculate stage statistics
+                        const stats = {
+                            success: stage.jobs.filter(j => j.status === 'success').length,
+                            failed: stage.jobs.filter(j => j.status === 'failed').length,
+                            running: stage.jobs.filter(j => j.status === 'running').length,
+                            pending: stage.jobs.filter(j => j.status === 'pending').length,
+                            total: stage.jobs.length
+                        };
+
+                        return (
+                            <div key={stage.id} className="relative flex flex-col gap-4 min-w-[18rem]">
+                                {/* Enhanced Stage Header */}
+                                <div className="flex flex-col gap-2 mb-2 px-1">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-gray-700 font-bold uppercase tracking-wide text-sm">
+                                            <div className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center text-gray-500 border border-gray-200">
+                                                <span className="text-xs">{idx + 1}</span>
+                                            </div>
+                                            {stage.name}
+                                        </div>
+                                        <div className="text-xs text-gray-400 font-mono">
+                                            {stats.total} Job{stats.total !== 1 ? 's' : ''}
                                         </div>
                                     </div>
                                     
-                                    {/* Hover Action */}
-                                    <div className="absolute inset-0 bg-gray-900/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-r-lg flex items-center justify-center">
-                                        <span className="bg-white text-gray-700 px-3 py-1 rounded shadow text-xs font-medium">View Logs</span>
+                                    {/* Status Summary Chips */}
+                                    <div className="flex gap-2 text-xs">
+                                        {stats.success > 0 && (
+                                            <div className="flex items-center gap-1 bg-green-50 text-green-700 px-2 py-0.5 rounded-full border border-green-100 font-medium">
+                                                <Icons.CheckCircle size={10} /> {stats.success}
+                                            </div>
+                                        )}
+                                        {stats.failed > 0 && (
+                                            <div className="flex items-center gap-1 bg-red-50 text-red-700 px-2 py-0.5 rounded-full border border-red-100 font-medium">
+                                                <Icons.XCircle size={10} /> {stats.failed}
+                                            </div>
+                                        )}
+                                        {stats.running > 0 && (
+                                            <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-100 font-medium">
+                                                <Icons.RotateCw size={10} className="animate-spin" /> {stats.running}
+                                            </div>
+                                        )}
+                                        {stats.pending > 0 && stats.total === stats.pending && (
+                                            <div className="flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200">
+                                                <Icons.Clock size={10} /> Pending
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                            ))}
+                                
+                                {stage.jobs.map((job) => (
+                                    <div 
+                                        key={job.id} 
+                                        onClick={() => setSelectedJobId(job.id)}
+                                        className={`w-72 bg-white rounded-lg border-l-4 shadow-sm hover:shadow-md cursor-pointer transition-all p-4 relative z-10 group
+                                            ${job.status === 'success' ? 'border-l-green-500' : 
+                                              job.status === 'failed' ? 'border-l-red-500' : 
+                                              job.status === 'running' ? 'border-l-blue-500' : 'border-l-gray-300'}
+                                        `}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <h4 className="font-bold text-gray-800 text-sm">{job.name}</h4>
+                                            <StatusIcon status={job.status} />
+                                        </div>
+                                        <div className="mt-3 flex justify-between items-end">
+                                            <div className="text-xs text-gray-500">{job.duration || '--'}</div>
+                                            <div className="flex gap-4 text-xs text-gray-400">
+                                                {job.stats && (
+                                                    <>
+                                                        <span className="text-red-500 font-medium">{job.stats.errors} Errors</span>
+                                                        <span className="text-yellow-600">{job.stats.warnings} Warn</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Hover Action */}
+                                        <div className="absolute inset-0 bg-gray-900/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-r-lg flex items-center justify-center">
+                                            <span className="bg-white text-gray-700 px-3 py-1 rounded shadow text-xs font-medium">View Logs</span>
+                                        </div>
+                                    </div>
+                                ))}
 
-                            {/* Connector to next stage */}
-                            {idx < pipeline.stages.length - 1 && (
-                                <div className="absolute top-16 left-full w-12 h-0.5 bg-gray-300"></div>
-                            )}
-                        </div>
-                    ))}
+                                {/* Connector to next stage */}
+                                {idx < pipeline.stages.length - 1 && (
+                                    <div className="absolute top-24 left-full w-12 h-0.5 bg-gray-300 z-0"></div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
+        ) : activeTab === 'jobs' ? (
+             <div className="flex-1 bg-white overflow-auto">
+                 <table className="w-full text-left border-collapse">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
+                        <tr className="border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <th className="py-3 px-6">Job Name</th>
+                            <th className="py-3 px-6">Stage</th>
+                            <th className="py-3 px-6">Type</th>
+                            <th className="py-3 px-6">Status</th>
+                            <th className="py-3 px-6">Duration</th>
+                            <th className="py-3 px-6 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {pipeline.stages.flatMap(stage => stage.jobs.map(job => ({...job, stageName: stage.name}))).map((job) => (
+                            <tr key={job.id} className="hover:bg-gray-50 transition-colors">
+                                <td className="py-4 px-6 text-sm font-medium text-gray-900">{job.name}</td>
+                                <td className="py-4 px-6 text-sm text-gray-600">{job.stageName}</td>
+                                <td className="py-4 px-6 text-sm text-gray-600">
+                                    <span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono uppercase">{job.type}</span>
+                                </td>
+                                <td className="py-4 px-6">
+                                    <div className="flex items-center gap-2">
+                                        <StatusIcon status={job.status} className="w-4 h-4" />
+                                        <span className={`text-sm capitalize ${
+                                            job.status === 'success' ? 'text-green-700' : 
+                                            job.status === 'failed' ? 'text-red-700' : 
+                                            job.status === 'running' ? 'text-blue-700' : 'text-gray-600'
+                                        }`}>{job.status}</span>
+                                    </div>
+                                </td>
+                                <td className="py-4 px-6 text-sm text-gray-600 font-mono">{job.duration || '-'}</td>
+                                <td className="py-4 px-6 text-right">
+                                    <button 
+                                        onClick={() => setSelectedJobId(job.id)}
+                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 justify-end ml-auto"
+                                    >
+                                        <Icons.Terminal size={14} /> Logs
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                 </table>
+                 {pipeline.stages.every(s => s.jobs.length === 0) && (
+                    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                        <Icons.Box size={48} className="mb-4 opacity-50" />
+                        <p>No jobs configured</p>
+                    </div>
+                )}
+             </div>
         ) : (
             <div className="flex-1 bg-white overflow-auto">
                 <table className="w-full text-left border-collapse">
@@ -245,7 +405,7 @@ const PipelineDetailView: React.FC = () => {
       {/* Log Terminal Modal */}
       <Terminal 
         isOpen={!!selectedJob} 
-        onClose={() => setSelectedJob(null)} 
+        onClose={() => setSelectedJobId(null)} 
         title={selectedJob?.name || 'Logs'} 
         logs={selectedJob?.logs || []}
       />
