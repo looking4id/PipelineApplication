@@ -1,0 +1,5 @@
+{
+  "name": "PipelineApplication",
+  "description": "A comprehensive DevOps pipeline management system featuring visual flow editing, real-time log viewing, and extensive configuration for continuous integration and deployment.",
+  "requestFramePermissions": []
+}

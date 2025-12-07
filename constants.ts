@@ -1,0 +1,128 @@
+import { PipelineDetail, Pipeline } from './types';
+
+export const MOCK_PIPELINES: Pipeline[] = [
+  {
+    id: 'p-001',
+    name: 'My-Java-Pipeline-01',
+    lastRunId: 2,
+    lastRunStatus: 'failed',
+    lastRunTime: '2025-12-06 19:35',
+    duration: '1m 5s',
+    author: 'dev@aliyun.com',
+    branch: 'master'
+  },
+  {
+    id: 'p-002',
+    name: 'Frontend-React-Build',
+    lastRunId: 15,
+    lastRunStatus: 'success',
+    lastRunTime: '2025-12-06 14:20',
+    duration: '2m 12s',
+    author: 'admin@aliyun.com',
+    branch: 'feature/new-ui'
+  }
+];
+
+export const MOCK_LOGS_JAVA = [
+  "[executionStep begins at 2025-12-06 19:35:27]",
+  "[Build Cluster Info]",
+  ">> Cluster Name   : Cloud Beijing Build Cluster",
+  "[Build Machine Info]:",
+  ">> OS             : linux",
+  ">> Arch           : amd64",
+  ">> Hostname       : build-job-417458194-k74mn",
+  "[Build Job Info]:",
+  ">> ID             : 9b34299d-33cb-4de0-80e1-2574c39c51ba",
+  ">> ParentID       : a65da666-f3e5-4b7c-af1e-a202880a2fae",
+  ">> Namespace      : be-08gtr9g3d1sliabfbcp8sjj5",
+  ">> Executor       : Node",
+  "[Container Image]:",
+  ">> ID             : build-steps-public-registry.cn-beijing.cr.aliyuncs.com/build-steps/alinux3:latest",
+  "[Flow Step]:",
+  ">> Start downloading flow steps: Cache_production@v1.0.13, JavaP3CScan_production@v1.2.0",
+  ">> [Cache_production@v1.0.13] Download step from http://steps-cn-beijing.oss-cn-beijing-internal.aliyuncs.com/steps/Cache_production_production/v1.0.13/code.tgz?",
+  "Expires=1765035306&OSSAccessKeyId=LTAI5tD73GwJz6t9q3A3oFMk&Signature=0t3Mow%2Fg9p7w8DpSnHz9a3oqeCg%3D",
+  ">> [Cache_production@v1.0.13] Download step successfully, time cost 30.498272ms",
+  ">> [JavaP3CScan_production@v1.2.0] Download step from http://steps-cn-beijing.oss-cn-beijing-internal.aliyuncs.com/steps/JavaP3CScan_production_production/v1.2.0/code.tgz?",
+  ">> [JavaP3CScan_production@v1.2.0] Download step successfully, time cost 1.50317875s",
+  ">> [Cache_production@v1.0.13] Step already exists, skip download",
+  "------------------------------------------------------------------------",
+  "BUILD FAILURE",
+  "------------------------------------------------------------------------",
+  "Total time:  0.074 s",
+  "Finished at: 2025-12-06T19:35:21+08:00",
+  "[ERROR] The goal you specified requires a project to execute but there is no POM in this directory.",
+];
+
+export const DEFAULT_PIPELINE_DETAIL: PipelineDetail = {
+  ...MOCK_PIPELINES[0],
+  stages: [
+    {
+      id: 'stage-test',
+      name: 'Test',
+      jobs: [
+        {
+          id: 'job-scan',
+          name: 'Java Code Scan',
+          status: 'success',
+          duration: '1m 5s',
+          type: 'scan',
+          logs: MOCK_LOGS_JAVA,
+          stats: { errors: 0, warnings: 0, info: 0 }
+        },
+        {
+          id: 'job-unit',
+          name: 'Maven Unit Test',
+          status: 'failed',
+          duration: '17s',
+          type: 'test',
+          logs: MOCK_LOGS_JAVA
+        }
+      ]
+    },
+    {
+      id: 'stage-build',
+      name: 'Build',
+      jobs: [
+        {
+          id: 'job-build-java',
+          name: 'Java Build',
+          status: 'pending',
+          duration: '0s',
+          type: 'build',
+          logs: []
+        }
+      ]
+    },
+    {
+      id: 'stage-deploy',
+      name: 'Deploy',
+      jobs: [
+        {
+          id: 'job-deploy',
+          name: 'Deploy to K8s',
+          status: 'pending',
+          duration: '0s',
+          type: 'deploy',
+          logs: []
+        }
+      ]
+    }
+  ]
+};
+
+export const TEMPLATES = [
+    { name: 'Java', desc: 'Java Spring Boot', icon: '☕' },
+    { name: 'Node.js', desc: 'React/Vue Build', icon: '🟢' },
+    { name: 'Go', desc: 'Go Microservice', icon: '🐹' },
+    { name: 'Python', desc: 'Django/Flask', icon: '🐍' },
+    { name: 'PHP', desc: 'Laravel/Symfony', icon: '🐘' },
+    { name: '.NET', desc: 'ASP.NET Core', icon: '🔷' },
+];
+
+export const MOCK_HISTORY = [
+    { runId: 3, status: 'running', message: 'Merge pull request #42', trigger: 'ap7430v1p@aliyun.com', duration: 'Running', time: '2025-12-06 19:40', branch: 'master', commitId: '8a2b1c' },
+    { runId: 2, status: 'failed', message: 'Update README.md', trigger: 'ap7430v1p@aliyun.com', duration: '1m 5s', time: '2025-12-06 19:35', branch: 'master', commitId: '7b3c2d' },
+    { runId: 1, status: 'failed', message: 'Initial commit', trigger: 'ap7430v1p@aliyun.com', duration: '1m 21s', time: '2025-12-06 19:21', branch: 'master', commitId: '6c4d3e' },
+    { runId: 10, status: 'success', message: 'Fix build script', trigger: 'dev@aliyun.com', duration: '2m 10s', time: '2025-12-05 14:20', branch: 'develop', commitId: '5d5e4f' },
+];
