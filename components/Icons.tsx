@@ -5,7 +5,8 @@ import {
   Settings, GitBranch, FileText, Layout, 
   Plus, Search, Bell, HelpCircle, ChevronRight,
   MoreHorizontal, Terminal, Save, Box, Trash2,
-  GripVertical, Hammer, FlaskConical, CloudUpload, Code
+  GripVertical, Hammer, FlaskConical, CloudUpload, Code,
+  Github, Gitlab, HardDrive, Server, Globe
 } from 'lucide-react';
 
 export const Icons = {
@@ -32,7 +33,12 @@ export const Icons = {
   Hammer,
   FlaskConical,
   CloudUpload,
-  Code
+  Code,
+  Github,
+  Gitlab,
+  HardDrive,
+  Server,
+  Globe
 };
 
 export const StatusIcon = ({ status, className = "w-5 h-5" }: { status: string, className?: string }) => {

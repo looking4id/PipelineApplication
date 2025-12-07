@@ -330,15 +330,15 @@ const PipelineDetailView: React.FC = () => {
                                 </td>
                                 <td className="py-4 px-6 text-sm text-gray-600">{job.stageName}</td>
                                 <td className="py-4 px-6 text-sm text-gray-600">
-                                    <span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono uppercase">{job.type}</span>
+                                    <span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono uppercase border border-gray-200 text-gray-600">{job.type}</span>
                                 </td>
                                 <td className="py-4 px-6">
                                     <div className="flex items-center gap-2">
                                         <StatusIcon status={job.status} className="w-4 h-4" />
-                                        <span className={`text-sm capitalize ${
-                                            job.status === 'success' ? 'text-green-700' : 
-                                            job.status === 'failed' ? 'text-red-700' : 
-                                            job.status === 'running' ? 'text-blue-700' : 'text-gray-600'
+                                        <span className={`text-sm capitalize px-2 py-0.5 rounded-full font-medium ${
+                                            job.status === 'success' ? 'bg-green-100 text-green-800' : 
+                                            job.status === 'failed' ? 'bg-red-100 text-red-800' : 
+                                            job.status === 'running' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
                                         }`}>{job.status}</span>
                                     </div>
                                 </td>
@@ -346,7 +346,7 @@ const PipelineDetailView: React.FC = () => {
                                 <td className="py-4 px-6 text-right">
                                     <button 
                                         onClick={() => setSelectedJobId(job.id)}
-                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 justify-end ml-auto"
+                                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 justify-end ml-auto transition-colors"
                                     >
                                         <Icons.Terminal size={14} /> Logs
                                     </button>
