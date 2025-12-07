@@ -1,9 +1,11 @@
+
 import React from 'react';
 import { 
   Play, RotateCw, XCircle, CheckCircle, Clock, 
   Settings, GitBranch, FileText, Layout, 
   Plus, Search, Bell, HelpCircle, ChevronRight,
-  MoreHorizontal, Terminal, Save, Box, Trash2
+  MoreHorizontal, Terminal, Save, Box, Trash2,
+  GripVertical
 } from 'lucide-react';
 
 export const Icons = {
@@ -25,7 +27,8 @@ export const Icons = {
   Terminal,
   Save,
   Box,
-  Trash2
+  Trash2,
+  GripVertical
 };
 
 export const StatusIcon = ({ status, className = "w-5 h-5" }: { status: string, className?: string }) => {

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Icons } from '../components/Icons';
@@ -10,7 +11,17 @@ const PipelineSettings: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<SettingsTab>('flow_config');
   const [yamlMode, setYamlMode] = useState(false);
-  const [stages, setStages] = useState<Stage[]>(DEFAULT_PIPELINE_DETAIL.stages);
+  
+  // Initialize stages with default widths if not present
+  const [stages, setStages] = useState<Stage[]>(() => 
+    DEFAULT_PIPELINE_DETAIL.stages.map(s => ({ ...s, width: s.width || 320 }))
+  );
+
+  // --- Drag and Drop State ---
+  const [draggedJob, setDraggedJob] = useState<{ stageId: string, index: number } | null>(null);
+  
+  // --- Resizing State ---
+  const [resizing, setResizing] = useState<{ stageId: string, startX: number, startWidth: number } | null>(null);
 
   const mockYaml = `name: My-Java-Pipeline-01
 stages:
@@ -30,12 +41,96 @@ stages:
         namespace: production
 `;
 
-  // Visual Editor Handlers
+  // --- Resize Logic ---
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizing) return;
+      const delta = e.clientX - resizing.startX;
+      setStages(prev => prev.map(s => {
+        if (s.id === resizing.stageId) {
+          // Minimum width constraint of 250px
+          return { ...s, width: Math.max(250, resizing.startWidth + delta) };
+        }
+        return s;
+      }));
+    };
+
+    const handleMouseUp = () => {
+      if (resizing) {
+        setResizing(null);
+        document.body.style.cursor = 'default';
+        document.body.style.userSelect = 'auto';
+      }
+    };
+
+    if (resizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none'; // Prevent text selection while resizing
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizing]);
+
+  const startResize = (e: React.MouseEvent, stage: Stage) => {
+    e.preventDefault();
+    setResizing({
+      stageId: stage.id,
+      startX: e.clientX,
+      startWidth: stage.width || 320
+    });
+  };
+
+  // --- Drag and Drop Logic ---
+  const handleDragStart = (e: React.DragEvent, stageId: string, index: number) => {
+    setDraggedJob({ stageId, index });
+    e.dataTransfer.effectAllowed = 'move';
+    // Transparent drag image or default
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Allow drop
+  };
+
+  const handleDrop = (e: React.DragEvent, targetStageId: string, targetIndex?: number) => {
+    e.preventDefault();
+    if (!draggedJob) return;
+
+    // Create deep copy to mutate
+    const newStages = JSON.parse(JSON.stringify(stages)) as Stage[];
+    
+    const sourceStageIdx = newStages.findIndex(s => s.id === draggedJob.stageId);
+    const targetStageIdx = newStages.findIndex(s => s.id === targetStageId);
+
+    if (sourceStageIdx === -1 || targetStageIdx === -1) return;
+
+    // Remove from source
+    const [movedJob] = newStages[sourceStageIdx].jobs.splice(draggedJob.index, 1);
+
+    // Insert into target
+    // If targetIndex is undefined, it means we dropped on the stage container (append)
+    const destIndex = targetIndex !== undefined ? targetIndex : newStages[targetStageIdx].jobs.length;
+    
+    // Adjust index if we are moving within the same stage and moving down
+    // (native splice handles this mostly, but good to be aware)
+    
+    newStages[targetStageIdx].jobs.splice(destIndex, 0, movedJob);
+
+    setStages(newStages);
+    setDraggedJob(null);
+  };
+
+  // --- CRUD Handlers ---
   const handleAddStage = () => {
     const newStage: Stage = {
       id: `stage-${Date.now()}`,
       name: 'New Stage',
-      jobs: []
+      jobs: [],
+      width: 320
     };
     setStages([...stages, newStage]);
   };
@@ -165,9 +260,13 @@ stages:
 
                                     {/* Stages */}
                                     {stages.map((stage, idx) => (
-                                        <div key={stage.id} className="w-80 shrink-0 flex flex-col max-h-full">
+                                        <div 
+                                            key={stage.id} 
+                                            style={{ width: stage.width || 320 }}
+                                            className="shrink-0 flex flex-col max-h-full relative group/stage"
+                                        >
                                             {/* Stage Header */}
-                                            <div className="flex items-center justify-between mb-3 px-1 group">
+                                            <div className="flex items-center justify-between mb-3 px-1">
                                                 <div className="flex items-center gap-2 flex-1">
                                                     <div className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">
                                                         {idx + 1}
@@ -180,17 +279,34 @@ stages:
                                                 </div>
                                                 <button 
                                                     onClick={() => handleDeleteStage(stage.id)}
-                                                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover/stage:opacity-100 transition-opacity"
                                                 >
                                                     <Icons.Trash2 size={14} />
                                                 </button>
                                             </div>
 
-                                            {/* Jobs Container */}
-                                            <div className="bg-gray-100/80 rounded-xl p-3 flex flex-col gap-3 min-h-[150px] border border-gray-200/60 overflow-y-auto">
-                                                {stage.jobs.map((job) => (
-                                                    <div key={job.id} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative">
+                                            {/* Jobs Container (Drop Zone) */}
+                                            <div 
+                                                className={`bg-gray-100/80 rounded-xl p-3 flex flex-col gap-3 min-h-[150px] border border-gray-200/60 overflow-y-auto transition-colors ${draggedJob && draggedJob.stageId !== stage.id ? 'bg-blue-50/50 border-blue-200 border-dashed' : ''}`}
+                                                onDragOver={handleDragOver}
+                                                onDrop={(e) => handleDrop(e, stage.id)}
+                                            >
+                                                {stage.jobs.map((job, jobIdx) => (
+                                                    <div 
+                                                        key={job.id} 
+                                                        draggable
+                                                        onDragStart={(e) => handleDragStart(e, stage.id, jobIdx)}
+                                                        onDragOver={handleDragOver}
+                                                        onDrop={(e) => {
+                                                            e.stopPropagation(); // Stop propagation to stage container
+                                                            handleDrop(e, stage.id, jobIdx);
+                                                        }}
+                                                        className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative cursor-move"
+                                                    >
                                                         <div className="flex items-start gap-3">
+                                                            <div className="mt-1 text-gray-400 cursor-grab active:cursor-grabbing">
+                                                                <Icons.GripVertical size={16} />
+                                                            </div>
                                                             <div className="mt-1 text-gray-500">
                                                                 <Icons.Box size={16} />
                                                             </div>
@@ -218,6 +334,14 @@ stages:
                                                 >
                                                     <Icons.Plus size={14} /> Add Task
                                                 </button>
+                                            </div>
+
+                                            {/* Resize Handle */}
+                                            <div 
+                                                className="absolute right-[-12px] top-0 bottom-0 w-4 cursor-col-resize flex items-center justify-center opacity-0 hover:opacity-100 z-20 group/handle"
+                                                onMouseDown={(e) => startResize(e, stage)}
+                                            >
+                                                <div className="w-1 h-full bg-blue-400/50 group-hover/handle:bg-blue-500 rounded-full transition-colors"></div>
                                             </div>
                                         </div>
                                     ))}

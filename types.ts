@@ -1,3 +1,4 @@
+
 export type Status = 'success' | 'failed' | 'running' | 'pending' | 'skipped';
 
 export interface Pipeline {
@@ -29,6 +30,7 @@ export interface Stage {
   id: string;
   name: string;
   jobs: Job[];
+  width?: number; // Optional width in pixels for UI resizing
 }
 
 export interface PipelineDetail extends Pipeline {
