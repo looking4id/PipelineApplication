@@ -163,13 +163,19 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
 
   // --- CRUD Handlers ---
   const handleAddStage = () => {
+    handleAddStageAt(stages.length);
+  };
+
+  const handleAddStageAt = (index: number) => {
     const newStage: Stage = {
       id: `stage-${Date.now()}`,
       name: 'New Stage',
       jobs: [],
       width: 320
     };
-    setStages([...stages, newStage]);
+    const newStages = [...stages];
+    newStages.splice(index, 0, newStage);
+    setStages(newStages);
   };
 
   const handleDeleteStage = (stageId: string) => {
@@ -307,9 +313,9 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                             </div>
                         ) : (
                             <div className="flex-1 overflow-x-auto overflow-y-hidden bg-gray-100/50 p-6">
-                                <div className="flex items-start h-full gap-6">
+                                <div className="flex items-start h-full">
                                     {/* Sources Column */}
-                                    <div className="w-64 shrink-0 flex flex-col gap-3">
+                                    <div className="w-64 shrink-0 flex flex-col gap-3 mr-2">
                                         <div className="font-bold text-gray-500 text-sm px-1 flex items-center gap-2">
                                             <Icons.GitBranch size={14} /> SOURCES
                                         </div>
@@ -342,106 +348,129 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                             <Icons.Plus size={16} /> Add Pipeline Source
                                         </button>
                                         
-                                        <div className="text-center py-2 text-gray-400 text-xs">
-                                            <Icons.ChevronRight className="rotate-90 mx-auto" size={16} />
-                                        </div>
+                                        {/* End of Source Column - no default arrow */}
                                     </div>
 
                                     {/* Stages */}
                                     {stages.map((stage, idx) => (
-                                        <div 
-                                            key={stage.id} 
-                                            style={{ width: stage.width || 320 }}
-                                            className="shrink-0 flex flex-col max-h-full relative group/stage"
-                                        >
-                                            {/* Stage Header */}
-                                            <div className="flex items-center justify-between mb-3 px-1">
-                                                <div className="flex items-center gap-2 flex-1">
-                                                    <div className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">
-                                                        {idx + 1}
-                                                    </div>
-                                                    <input 
-                                                        value={stage.name}
-                                                        onChange={(e) => handleStageNameChange(stage.id, e.target.value)}
-                                                        className="bg-transparent font-bold text-gray-700 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 rounded px-1 -ml-1 w-full outline-none"
-                                                    />
-                                                </div>
-                                                <button 
-                                                    onClick={() => handleDeleteStage(stage.id)}
-                                                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover/stage:opacity-100 transition-opacity"
-                                                >
-                                                    <Icons.Trash2 size={14} />
-                                                </button>
+                                        <React.Fragment key={stage.id}>
+                                            {/* Connector / Insert Button */}
+                                            <div className="w-14 shrink-0 h-full relative flex flex-col items-center pt-10 group/insert z-10">
+                                                 <div className="absolute top-[52px] w-full h-0.5 bg-gray-300"></div>
+                                                 <button 
+                                                    onClick={() => handleAddStageAt(idx)}
+                                                    className="absolute top-[40px] z-20 w-6 h-6 rounded-full bg-white border border-dashed border-gray-400 text-gray-400 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-all shadow-sm opacity-0 group-hover/insert:opacity-100 transform hover:scale-110"
+                                                    title="Insert Stage Here"
+                                                 >
+                                                    <Icons.Plus size={14} />
+                                                 </button>
                                             </div>
 
-                                            {/* Jobs Container (Drop Zone) */}
                                             <div 
-                                                className={`bg-gray-100/80 rounded-xl p-3 flex flex-col gap-3 min-h-[150px] border border-gray-200/60 overflow-y-auto transition-colors ${draggedJob && draggedJob.stageId !== stage.id ? 'bg-blue-50/50 border-blue-200 border-dashed' : ''}`}
-                                                onDragOver={handleDragOver}
-                                                onDrop={(e) => handleDrop(e, stage.id)}
+                                                style={{ width: stage.width || 320 }}
+                                                className="shrink-0 flex flex-col max-h-full relative group/stage"
                                             >
-                                                {stage.jobs.map((job, jobIdx) => (
-                                                    <div 
-                                                        key={job.id} 
-                                                        draggable
-                                                        onDragStart={(e) => handleDragStart(e, stage.id, jobIdx)}
-                                                        onDragOver={handleDragOver}
-                                                        onDrop={(e) => {
-                                                            e.stopPropagation(); // Stop propagation to stage container
-                                                            handleDrop(e, stage.id, jobIdx);
-                                                        }}
-                                                        onClick={() => setEditingJob({ stageId: stage.id, job })}
-                                                        className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative cursor-move hover:border-blue-400"
+                                                {/* Stage Header */}
+                                                <div className="flex items-center justify-between mb-3 px-1">
+                                                    <div className="flex items-center gap-2 flex-1">
+                                                        <div className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">
+                                                            {idx + 1}
+                                                        </div>
+                                                        <input 
+                                                            value={stage.name}
+                                                            onChange={(e) => handleStageNameChange(stage.id, e.target.value)}
+                                                            className="bg-transparent font-bold text-gray-700 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 rounded px-1 -ml-1 w-full outline-none"
+                                                        />
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleDeleteStage(stage.id)}
+                                                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover/stage:opacity-100 transition-opacity"
                                                     >
-                                                        <div className="flex items-start gap-3">
-                                                            <div className="mt-1 text-gray-400 cursor-grab active:cursor-grabbing">
-                                                                <Icons.GripVertical size={16} />
-                                                            </div>
-                                                            <div className="mt-1 text-gray-500">
-                                                                <JobTypeIcon type={job.type} />
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="text-sm font-medium text-gray-900 truncate pr-6">{job.name}</div>
-                                                                <p className="text-xs text-gray-400 mt-0.5">{job.type}</p>
-                                                                {/* Dependency Indicator */}
-                                                                {job.dependencies && job.dependencies.length > 0 && (
-                                                                    <div className="flex items-center gap-1 mt-1.5 text-xs text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded w-fit border border-orange-100">
-                                                                        <Icons.Link size={10} />
-                                                                        <span>Depends on {job.dependencies.length} task{job.dependencies.length > 1 ? 's' : ''}</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); handleDeleteJob(stage.id, job.id); }}
-                                                                className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2"
-                                                            >
-                                                                <Icons.XCircle size={14} />
-                                                            </button>
-                                                            {/* Edit Indicator */}
-                                                            <div className="absolute right-8 top-2 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <Icons.Settings size={14} />
+                                                        <Icons.Trash2 size={14} />
+                                                    </button>
+                                                </div>
+
+                                                {/* Jobs Container (Drop Zone) */}
+                                                <div 
+                                                    className={`bg-gray-100/80 rounded-xl p-3 flex flex-col gap-3 min-h-[150px] border border-gray-200/60 overflow-y-auto transition-colors ${draggedJob && draggedJob.stageId !== stage.id ? 'bg-blue-50/50 border-blue-200 border-dashed' : ''}`}
+                                                    onDragOver={handleDragOver}
+                                                    onDrop={(e) => handleDrop(e, stage.id)}
+                                                >
+                                                    {stage.jobs.map((job, jobIdx) => (
+                                                        <div 
+                                                            key={job.id} 
+                                                            draggable
+                                                            onDragStart={(e) => handleDragStart(e, stage.id, jobIdx)}
+                                                            onDragOver={handleDragOver}
+                                                            onDrop={(e) => {
+                                                                e.stopPropagation(); // Stop propagation to stage container
+                                                                handleDrop(e, stage.id, jobIdx);
+                                                            }}
+                                                            onClick={() => setEditingJob({ stageId: stage.id, job })}
+                                                            className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative cursor-move hover:border-blue-400"
+                                                        >
+                                                            <div className="flex items-start gap-3">
+                                                                <div className="mt-1 text-gray-400 cursor-grab active:cursor-grabbing">
+                                                                    <Icons.GripVertical size={16} />
+                                                                </div>
+                                                                <div className="mt-1 text-gray-500">
+                                                                    <JobTypeIcon type={job.type} />
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="text-sm font-medium text-gray-900 truncate pr-6">{job.name}</div>
+                                                                    <p className="text-xs text-gray-400 mt-0.5">{job.type}</p>
+                                                                    {/* Dependency Indicator */}
+                                                                    {job.dependencies && job.dependencies.length > 0 && (
+                                                                        <div className="flex items-center gap-1 mt-1.5 text-xs text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded w-fit border border-orange-100">
+                                                                            <Icons.Link size={10} />
+                                                                            <span>Depends on {job.dependencies.length} task{job.dependencies.length > 1 ? 's' : ''}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); handleDeleteJob(stage.id, job.id); }}
+                                                                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2"
+                                                                >
+                                                                    <Icons.XCircle size={14} />
+                                                                </button>
+                                                                {/* Edit Indicator */}
+                                                                <div className="absolute right-8 top-2 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <Icons.Settings size={14} />
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    ))}
 
-                                                <button 
-                                                    onClick={() => handleAddJob(stage.id)}
-                                                    className="flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-sm hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-all mt-auto"
+                                                    <button 
+                                                        onClick={() => handleAddJob(stage.id)}
+                                                        className="flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-sm hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-all mt-auto"
+                                                    >
+                                                        <Icons.Plus size={14} /> Add Task
+                                                    </button>
+                                                </div>
+
+                                                {/* Resize Handle */}
+                                                <div 
+                                                    className="absolute right-[-12px] top-0 bottom-0 w-4 cursor-col-resize flex items-center justify-center opacity-0 hover:opacity-100 z-20 group/handle"
+                                                    onMouseDown={(e) => startResize(e, stage)}
                                                 >
-                                                    <Icons.Plus size={14} /> Add Task
-                                                </button>
+                                                    <div className="w-1 h-full bg-blue-400/50 group-hover/handle:bg-blue-500 rounded-full transition-colors"></div>
+                                                </div>
                                             </div>
-
-                                            {/* Resize Handle */}
-                                            <div 
-                                                className="absolute right-[-12px] top-0 bottom-0 w-4 cursor-col-resize flex items-center justify-center opacity-0 hover:opacity-100 z-20 group/handle"
-                                                onMouseDown={(e) => startResize(e, stage)}
-                                            >
-                                                <div className="w-1 h-full bg-blue-400/50 group-hover/handle:bg-blue-500 rounded-full transition-colors"></div>
-                                            </div>
-                                        </div>
+                                        </React.Fragment>
                                     ))}
+
+                                    {/* Connector to Add Stage Column */}
+                                    <div className="w-14 shrink-0 h-full relative flex flex-col items-center pt-10 group/insert z-10">
+                                        <div className="absolute top-[52px] w-full h-0.5 bg-gray-300"></div>
+                                        <button 
+                                            onClick={() => handleAddStageAt(stages.length)}
+                                            className="absolute top-[40px] z-20 w-6 h-6 rounded-full bg-white border border-dashed border-gray-400 text-gray-400 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-all shadow-sm opacity-0 group-hover/insert:opacity-100 transform hover:scale-110"
+                                            title="Append Stage Here"
+                                        >
+                                            <Icons.Plus size={14} />
+                                        </button>
+                                    </div>
 
                                     {/* Add Stage Column */}
                                     <div className="w-80 shrink-0 h-full pt-9">
