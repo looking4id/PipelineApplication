@@ -24,6 +24,7 @@ export interface Job {
     warnings: number;
     info: number;
   };
+  dependencies?: string[]; // IDs of jobs that must complete before this one
 }
 
 export interface Stage {

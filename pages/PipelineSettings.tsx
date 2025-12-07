@@ -60,7 +60,7 @@ const PipelineSettings: React.FC = () => {
 sources:
 ${sources.map(s => `  - type: ${s.type}\n    repo: ${s.repo}\n    branch: ${s.branch}`).join('\n')}
 stages:
-${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - task: ${j.name}`).join('\n')}`).join('\n')}
+${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - task: ${j.name}${j.dependencies?.length ? `\n        needs: [${j.dependencies.join(', ')}]` : ''}`).join('\n')}`).join('\n')}
 `;
 
   // --- Save Handler ---
@@ -403,6 +403,13 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="text-sm font-medium text-gray-900 truncate pr-6">{job.name}</div>
                                                                 <p className="text-xs text-gray-400 mt-0.5">{job.type}</p>
+                                                                {/* Dependency Indicator */}
+                                                                {job.dependencies && job.dependencies.length > 0 && (
+                                                                    <div className="flex items-center gap-1 mt-1.5 text-xs text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded w-fit border border-orange-100">
+                                                                        <Icons.Link size={10} />
+                                                                        <span>Depends on {job.dependencies.length} task{job.dependencies.length > 1 ? 's' : ''}</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             <button 
                                                                 onClick={(e) => { e.stopPropagation(); handleDeleteJob(stage.id, job.id); }}
@@ -505,6 +512,7 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
         {editingJob && (
             <TaskEditModal 
                 job={editingJob.job}
+                siblingJobs={stages.find(s => s.id === editingJob.stageId)?.jobs.filter(j => j.id !== editingJob.job.id) || []}
                 onClose={() => setEditingJob(null)}
                 onSave={(updatedJob) => handleSaveJob(updatedJob, editingJob.stageId)}
             />
@@ -535,9 +543,10 @@ const JobTypeIcon = ({ type }: { type: string }) => {
 };
 
 // --- Task Edit Modal ---
-const TaskEditModal = ({ job, onClose, onSave }: { job: Job, onClose: () => void, onSave: (j: Job) => void }) => {
+const TaskEditModal = ({ job, siblingJobs, onClose, onSave }: { job: Job, siblingJobs: Job[], onClose: () => void, onSave: (j: Job) => void }) => {
     const [name, setName] = useState(job.name);
     const [tab, setTab] = useState<'basic' | 'vars' | 'policy'>('basic');
+    const [dependencies, setDependencies] = useState<string[]>(job.dependencies || []);
 
     // Simulate different configs based on type
     const [buildCommand, setBuildCommand] = useState('mvn clean install -DskipTests');
@@ -545,7 +554,13 @@ const TaskEditModal = ({ job, onClose, onSave }: { job: Job, onClose: () => void
     const [envName, setEnvName] = useState('Production');
 
     const handleSave = () => {
-        onSave({ ...job, name });
+        onSave({ ...job, name, dependencies });
+    };
+
+    const toggleDependency = (id: string) => {
+        setDependencies(prev => 
+            prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]
+        );
     };
 
     return (
@@ -586,6 +601,30 @@ const TaskEditModal = ({ job, onClose, onSave }: { job: Job, onClose: () => void
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 />
                             </div>
+                            
+                            {/* Dependencies Section */}
+                            {siblingJobs.length > 0 && (
+                                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                    <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                        <Icons.Link size={14} className="text-gray-500" /> 
+                                        Task Dependencies
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-3">Select tasks in the current stage that must complete before this task starts.</p>
+                                    <div className="flex flex-col gap-2">
+                                        {siblingJobs.map(sibling => (
+                                            <label key={sibling.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 p-1.5 rounded -ml-1.5">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={dependencies.includes(sibling.id)}
+                                                    onChange={() => toggleDependency(sibling.id)}
+                                                    className="rounded text-blue-600 focus:ring-blue-500 border-gray-300" 
+                                                />
+                                                <span className="text-sm text-gray-700">{sibling.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Dynamic Fields based on Job Type */}
                             {job.type === 'build' && (
