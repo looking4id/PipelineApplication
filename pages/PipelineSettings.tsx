@@ -62,6 +62,7 @@ const calculateStageWidth = (jobs: Job[]): number => {
     // Constants matching UI rendering
     const JOB_CARD_WIDTH = 224; // w-56
     const CONNECTOR_WIDTH = 24; // w-6
+    const GAP_WIDTH = 8; // gap-2
     const CONTAINER_PADDING = 48; // p-3 * 2 + extra buffer
 
     let maxChainWidth = 0;
@@ -71,8 +72,17 @@ const calculateStageWidth = (jobs: Job[]): number => {
     } 
 
     chains.forEach(chain => {
-        // Width = (JobCards) + (Connectors)
-        const width = (chain.length * JOB_CARD_WIDTH) + (Math.max(0, chain.length - 1) * CONNECTOR_WIDTH);
+        const numCards = chain.length;
+        const numConnectors = Math.max(0, numCards - 1);
+        // Gaps exist between every element (card or connector)
+        // Total elements = numCards + numConnectors
+        const totalElements = numCards + numConnectors;
+        const numGaps = Math.max(0, totalElements - 1);
+
+        const width = (numCards * JOB_CARD_WIDTH) + 
+                      (numConnectors * CONNECTOR_WIDTH) + 
+                      (numGaps * GAP_WIDTH);
+
         if (width > maxChainWidth) maxChainWidth = width;
     });
 
@@ -265,6 +275,11 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
     // Add to target stage (append to end as a new parallel root)
     newStages[targetStageIdx].jobs.push(movedJob);
 
+    // Recalculate widths to recover (shrink) source or expand target
+    newStages[sourceStageIdx].width = calculateStageWidth(newStages[sourceStageIdx].jobs);
+    // For target, we generally expand if needed, but allow it to stay larger if manually resized
+    newStages[targetStageIdx].width = Math.max(newStages[targetStageIdx].width || 0, calculateStageWidth(newStages[targetStageIdx].jobs));
+
     setStages(newStages);
     setDraggedJob(null);
   };
@@ -379,7 +394,11 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
             ...j,
             dependencies: j.dependencies?.filter(d => d !== jobId)
         }));
-        return { ...s, jobs: filteredJobs };
+        
+        // Recalculate width to fit content (recover width)
+        const newWidth = calculateStageWidth(filteredJobs);
+
+        return { ...s, jobs: filteredJobs, width: newWidth };
       }
       return s;
     }));
@@ -598,7 +617,7 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                                         {/* Left */}
                                                                         <button 
                                                                             onClick={(e) => { e.stopPropagation(); handleAddSerialTask(stage.id, job, 'left'); }}
-                                                                            className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 w-5 h-5 bg-white border border-gray-300 text-blue-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/job:opacity-100 hover:scale-110 z-10 transition-all"
+                                                                            className="absolute left-0 top-1/2 -translate-x-[150%] -translate-y-1/2 w-5 h-5 bg-white border border-gray-300 text-blue-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/job:opacity-100 hover:scale-110 z-20 transition-all"
                                                                             title="Insert Task Before"
                                                                         >
                                                                             <Icons.Plus size={10} />
@@ -606,7 +625,7 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                                         {/* Right */}
                                                                         <button 
                                                                             onClick={(e) => { e.stopPropagation(); handleAddSerialTask(stage.id, job, 'right'); }}
-                                                                            className="absolute right-0 top-1/2 translate-x-full -translate-y-1/2 w-5 h-5 bg-white border border-gray-300 text-blue-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/job:opacity-100 hover:scale-110 z-10 transition-all"
+                                                                            className="absolute right-0 top-1/2 translate-x-[150%] -translate-y-1/2 w-5 h-5 bg-white border border-gray-300 text-blue-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/job:opacity-100 hover:scale-110 z-20 transition-all"
                                                                             title="Insert Task After"
                                                                         >
                                                                             <Icons.Plus size={10} />
