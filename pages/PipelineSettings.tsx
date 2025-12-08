@@ -338,7 +338,10 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
           }
 
           // Automatically adjust width to fit the new serial task
-          const newWidth = calculateStageWidth(newJobs);
+          // We take the MAX of current width and required width to avoid shrinking if user manually expanded it
+          const requiredWidth = calculateStageWidth(newJobs);
+          const currentWidth = s.width || 0;
+          const newWidth = Math.max(currentWidth, requiredWidth);
 
           return { ...s, jobs: newJobs, width: newWidth };
       }));
@@ -518,7 +521,10 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                     </div>
 
                                     {/* Stages Render Loop */}
-                                    {stages.map((stage, idx) => (
+                                    {stages.map((stage, idx) => {
+                                        const isResizingThis = resizing?.stageId === stage.id;
+                                        
+                                        return (
                                         <div key={stage.id} className="flex h-full shrink-0 group/stage">
                                             {/* Connector & Insert Button (Before Stage) */}
                                             {idx > 0 && (
@@ -537,7 +543,7 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
 
                                             {/* Stage Column */}
                                             <div 
-                                              className="flex flex-col relative transition-all duration-300 ease-out"
+                                              className={`flex flex-col relative transition-all duration-300 ease-out ${isResizingThis ? 'z-30' : ''}`}
                                               style={{ width: stage.width }}
                                             >
                                                 <div className="flex items-center justify-between mb-3 px-1 group/header">
@@ -559,7 +565,7 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                 </div>
 
                                                 <div 
-                                                    className="flex-1 bg-gray-200/50 rounded-xl border border-gray-200 p-3 flex flex-col gap-4 overflow-y-auto overflow-x-auto"
+                                                    className={`flex-1 bg-gray-200/50 rounded-xl border p-3 flex flex-col gap-4 overflow-y-auto overflow-x-auto ${isResizingThis ? 'border-blue-500 bg-blue-50/10' : 'border-gray-200'}`}
                                                     onDragOver={handleDragOver}
                                                     onDrop={(e) => handleDrop(e, stage.id)}
                                                 >
@@ -573,25 +579,14 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                                     )}
                                                                     <div 
                                                                         draggable
+                                                                        onClick={() => setEditingJob({ stageId: stage.id, job })}
                                                                         onDragStart={(e) => handleDragStart(e, stage.id, stage.jobs.indexOf(job))}
-                                                                        className="bg-white p-3 rounded border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 cursor-move relative group/job w-56 shrink-0"
+                                                                        className="bg-white p-3 rounded border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 cursor-pointer relative group/job w-56 shrink-0 transition-shadow"
                                                                     >
                                                                         <div className="flex justify-between items-start mb-2">
                                                                             <div className="flex items-center gap-2">
                                                                                 <Icons.Code size={14} className="text-gray-400" />
-                                                                                <span className="font-semibold text-gray-800 text-sm truncate max-w-[120px]" title={job.name}>{job.name}</span>
-                                                                            </div>
-                                                                            <div className="flex gap-1 opacity-0 group-hover/job:opacity-100 transition-opacity">
-                                                                                <Icons.Settings 
-                                                                                    size={14} 
-                                                                                    className="text-gray-400 hover:text-blue-500 cursor-pointer" 
-                                                                                    onClick={() => setEditingJob({ stageId: stage.id, job })}
-                                                                                />
-                                                                                <Icons.Trash2 
-                                                                                    size={14} 
-                                                                                    className="text-gray-400 hover:text-red-500 cursor-pointer"
-                                                                                    onClick={() => handleDeleteJob(stage.id, job.id)}
-                                                                                />
+                                                                                <span className="font-semibold text-gray-800 text-sm truncate max-w-[180px]" title={job.name}>{job.name}</span>
                                                                             </div>
                                                                         </div>
                                                                         <div className="flex items-center gap-1 text-xs text-gray-400">
@@ -602,16 +597,16 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                                         {/* Serial Insert Buttons */}
                                                                         {/* Left */}
                                                                         <button 
-                                                                            onClick={() => handleAddSerialTask(stage.id, job, 'left')}
-                                                                            className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-white border border-gray-300 text-blue-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/job:opacity-100 hover:scale-110 z-10"
+                                                                            onClick={(e) => { e.stopPropagation(); handleAddSerialTask(stage.id, job, 'left'); }}
+                                                                            className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 w-5 h-5 bg-white border border-gray-300 text-blue-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/job:opacity-100 hover:scale-110 z-10 transition-all"
                                                                             title="Insert Task Before"
                                                                         >
                                                                             <Icons.Plus size={10} />
                                                                         </button>
                                                                         {/* Right */}
                                                                         <button 
-                                                                            onClick={() => handleAddSerialTask(stage.id, job, 'right')}
-                                                                            className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-white border border-gray-300 text-blue-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/job:opacity-100 hover:scale-110 z-10"
+                                                                            onClick={(e) => { e.stopPropagation(); handleAddSerialTask(stage.id, job, 'right'); }}
+                                                                            className="absolute right-0 top-1/2 translate-x-full -translate-y-1/2 w-5 h-5 bg-white border border-gray-300 text-blue-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/job:opacity-100 hover:scale-110 z-10 transition-all"
                                                                             title="Insert Task After"
                                                                         >
                                                                             <Icons.Plus size={10} />
@@ -637,11 +632,18 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                     onDoubleClick={() => handleAutoFitStage(stage.id)}
                                                     title="Drag to resize, Double-click to auto-fit"
                                                 >
-                                                    <div className="w-1 h-full bg-transparent group-hover/resizer:bg-blue-400 transition-colors rounded-full"></div>
+                                                    <div className={`w-1 h-full transition-colors rounded-full ${isResizingThis ? 'bg-blue-600' : 'bg-transparent group-hover/resizer:bg-blue-400'}`}></div>
+                                                    
+                                                    {/* Visual Width Indicator when resizing */}
+                                                    {isResizingThis && (
+                                                        <div className="absolute top-1/2 left-4 transform -translate-y-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-50 font-mono">
+                                                            {Math.round(stage.width || 0)}px {stage.width && stage.width <= 280 ? '(Min)' : ''}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                    )})}
 
                                     {/* Add New Stage Placeholder */}
                                     <div className="flex items-start h-full pl-8 shrink-0">
@@ -718,6 +720,10 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                 allJobs={stages.flatMap(s => s.id === editingJob.stageId ? s.jobs : [])}
                 onClose={() => setEditingJob(null)}
                 onSave={(updatedJob) => handleSaveJob(updatedJob, editingJob.stageId)}
+                onDelete={() => {
+                    handleDeleteJob(editingJob.stageId, editingJob.job.id);
+                    setEditingJob(null);
+                }}
             />
         )}
 
@@ -845,7 +851,7 @@ const AddSourceModal = ({ onClose, onAdd }: { onClose: () => void, onAdd: (s: So
 };
 
 // Task Edit Modal Component
-const TaskEditModal = ({ job, stageId, allJobs, onClose, onSave }: { job: Job, stageId: string, allJobs: Job[], onClose: () => void, onSave: (j: Job) => void }) => {
+const TaskEditModal = ({ job, stageId, allJobs, onClose, onSave, onDelete }: { job: Job, stageId: string, allJobs: Job[], onClose: () => void, onSave: (j: Job) => void, onDelete: () => void }) => {
     const [name, setName] = useState(job.name);
     const [type, setType] = useState(job.type);
     const [dependencies, setDependencies] = useState<string[]>(job.dependencies || []);
@@ -961,9 +967,12 @@ const TaskEditModal = ({ job, stageId, allJobs, onClose, onSave }: { job: Job, s
                     )}
                 </div>
 
-                <div className="p-4 border-t border-gray-200 flex justify-end gap-3 bg-gray-50">
-                    <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded">Cancel</button>
-                    <button onClick={handleSave} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 shadow-sm">Save Task</button>
+                <div className="p-4 border-t border-gray-200 flex justify-between gap-3 bg-gray-50">
+                    <button onClick={onDelete} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded border border-transparent hover:border-red-200 transition-colors">Delete Task</button>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded transition-colors">Cancel</button>
+                        <button onClick={handleSave} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 shadow-sm transition-colors">Save Task</button>
+                    </div>
                 </div>
              </div>
         </div>
