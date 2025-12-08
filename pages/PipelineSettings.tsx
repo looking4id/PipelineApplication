@@ -678,13 +678,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                     onDragOver={handleDragOver}
                                                     onDrop={(e) => handleDrop(e, stage.id)}
                                                 >
-                                                    {hasMultipleChains && (
-                                                        <div className="absolute top-0 bottom-0 left-0 right-0 pointer-events-none z-0">
-                                                            <div className="absolute top-[50%] left-0 w-3 h-[2px] bg-gray-300 -translate-y-1/2"></div>
-                                                            <div className="absolute top-[50%] right-0 w-3 h-[2px] bg-gray-300 -translate-y-1/2"></div>
-                                                        </div>
-                                                    )}
-
                                                     {chains.map((chain, chainIdx) => {
                                                         const firstJobRel = getJobRelation(chain[0].id);
                                                         const lastJobRel = getJobRelation(chain[chain.length-1].id);
