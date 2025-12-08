@@ -7,7 +7,7 @@ import {
   MoreHorizontal, Terminal, Save, Box, Trash2,
   GripVertical, Hammer, FlaskConical, CloudUpload, Code,
   Github, Gitlab, HardDrive, Server, Globe, Link,
-  Maximize
+  Maximize, Zap, AlertCircle, PlusCircle
 } from 'lucide-react';
 
 export const Icons = {
@@ -41,7 +41,10 @@ export const Icons = {
   Server,
   Globe,
   Link,
-  Maximize
+  Maximize,
+  Zap,
+  AlertCircle,
+  PlusCircle
 };
 
 export const StatusIcon = ({ status, className = "w-5 h-5" }: { status: string, className?: string }) => {
