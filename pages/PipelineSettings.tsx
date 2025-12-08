@@ -584,7 +584,7 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                 </div>
 
                                                 <div 
-                                                    className={`flex-1 bg-gray-200/50 rounded-xl border p-3 flex flex-col gap-4 overflow-y-auto overflow-x-auto ${isResizingThis ? 'border-blue-500 bg-blue-50/10' : 'border-gray-200'}`}
+                                                    className={`flex-1 bg-gray-200/50 rounded-xl border p-3 flex flex-col gap-4 overflow-y-auto overflow-x-auto items-center ${isResizingThis ? 'border-blue-500 bg-blue-50/10' : 'border-gray-200'}`}
                                                     onDragOver={handleDragOver}
                                                     onDrop={(e) => handleDrop(e, stage.id)}
                                                 >
@@ -638,7 +638,7 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
 
                                                     <button 
                                                         onClick={() => handleAddJob(stage.id)}
-                                                        className="w-full py-2 border border-dashed border-gray-300 rounded text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-white transition-all text-xs font-medium flex items-center justify-center gap-1 shrink-0"
+                                                        className="w-56 py-2 border border-dashed border-gray-300 rounded text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-white transition-all text-xs font-medium flex items-center justify-center gap-1 shrink-0"
                                                     >
                                                         <Icons.Plus size={12} /> Add Parallel Task
                                                     </button>
