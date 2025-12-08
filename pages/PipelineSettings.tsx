@@ -426,16 +426,29 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
               newJobs.push(newJob);
 
           } else {
+              // LEFT SIDE INSERTION
+              // We need to insert the new job at the SAME INDEX as the anchor job
+              // to preserve the order of roots in organizeJobsIntoChains, 
+              // which prevents the parallel row from jumping to the bottom.
+              
+              const anchorIndex = newJobs.findIndex(j => j.id === anchorJob.id);
+              
               const localDeps = anchorJob.dependencies?.filter(isLocal) || [];
               const remoteDeps = anchorJob.dependencies?.filter(d => !isLocal(d)) || [];
               newJob.dependencies = [...localDeps];
+              
               newJobs = newJobs.map(j => {
                   if (j.id === anchorJob.id) {
                        return { ...j, dependencies: [newJob.id, ...remoteDeps] };
                   }
                   return j;
               });
-              newJobs.push(newJob);
+              
+              if (anchorIndex !== -1) {
+                  newJobs.splice(anchorIndex, 0, newJob);
+              } else {
+                  newJobs.push(newJob);
+              }
           }
 
           const requiredWidth = calculateStageWidth(newJobs);
