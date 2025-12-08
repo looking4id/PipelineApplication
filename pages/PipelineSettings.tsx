@@ -14,7 +14,7 @@ interface Source {
     branch?: string;
 }
 
-// --- Helper Functions (Moved outside component for reuse) ---
+// --- Helper Functions ---
 
 const organizeJobsIntoChains = (jobs: Job[]): Job[][] => {
     const localIds = new Set(jobs.map(j => j.id));
@@ -27,12 +27,10 @@ const organizeJobsIntoChains = (jobs: Job[]): Job[][] => {
     const chains: Job[][] = [];
     const visited = new Set<string>();
 
-    // Recursive chain builder
     const buildChain = (currentJob: Job): Job[] => {
         const chain = [currentJob];
         visited.add(currentJob.id);
 
-        // Find immediate child in this stage
         const child = jobs.find(j => j.dependencies?.includes(currentJob.id));
         if (child && !visited.has(child.id)) {
                 chain.push(...buildChain(child));
@@ -46,7 +44,6 @@ const organizeJobsIntoChains = (jobs: Job[]): Job[][] => {
         }
     });
 
-    // Cleanup orphans
     jobs.forEach(j => {
         if (!visited.has(j.id)) {
             chains.push([j]);
@@ -61,33 +58,161 @@ const calculateStageWidth = (jobs: Job[]): number => {
     
     // Constants matching UI rendering
     const JOB_CARD_WIDTH = 224; // w-56
-    const CONNECTOR_WIDTH = 24; // w-6
-    const GAP_WIDTH = 8; // gap-2
-    const CONTAINER_PADDING = 48; // p-3 * 2 + extra buffer
+    const CONNECTOR_WIDTH = 48; // w-12 between jobs
+    const BRACKET_WIDTH = 32; // min-w-[2rem] (w-8)
 
     let maxChainWidth = 0;
     
     if (chains.length === 0) {
-        return 320; // Default min width
+        return 300;
     } 
 
     chains.forEach(chain => {
         const numCards = chain.length;
         const numConnectors = Math.max(0, numCards - 1);
-        // Gaps exist between every element (card or connector)
-        // Total elements = numCards + numConnectors
-        const totalElements = numCards + numConnectors;
-        const numGaps = Math.max(0, totalElements - 1);
-
+        
         const width = (numCards * JOB_CARD_WIDTH) + 
-                      (numConnectors * CONNECTOR_WIDTH) + 
-                      (numGaps * GAP_WIDTH);
+                      (numConnectors * CONNECTOR_WIDTH) +
+                      (BRACKET_WIDTH * 2); // Left and Right brackets min width
 
         if (width > maxChainWidth) maxChainWidth = width;
     });
 
-    // Clamp to reasonable defaults
-    return Math.max(320, maxChainWidth + CONTAINER_PADDING);
+    return Math.max(300, maxChainWidth + 24);
+};
+
+// --- Styled Components ---
+
+const AddTaskButton = ({ onClick, className, visible }: { onClick: () => void, className?: string, visible?: boolean }) => (
+    <button 
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        className={`w-5 h-5 bg-white border border-blue-500 text-blue-500 rounded-full flex items-center justify-center shadow-sm transition-all duration-200 hover:bg-blue-600 hover:text-white hover:scale-110 hover:shadow-md z-30 ${className} ${visible ? 'opacity-100 scale-100' : 'opacity-0 scale-75 pointer-events-none'}`}
+        title="Add Task"
+    >
+        <Icons.Plus size={12} strokeWidth={3} />
+    </button>
+);
+
+const JobConnector = ({ 
+    active, 
+    onClick,
+    highlight 
+}: { 
+    active: boolean, 
+    onClick: () => void, 
+    highlight: boolean 
+}) => {
+    return (
+        <div className="w-12 h-8 flex items-center justify-center shrink-0 relative group/connector">
+            {/* The Line */}
+            <div className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[2px] transition-colors ${highlight ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+            
+            {/* The Button */}
+            <AddTaskButton 
+                onClick={onClick} 
+                visible={active} // Show if active (hovered) or if connector group is hovered
+                className="group-hover/connector:opacity-100 group-hover/connector:scale-100 group-hover/connector:pointer-events-auto"
+            />
+        </div>
+    );
+};
+
+// --- Bracket Component for Parallel Lines ---
+const ChainBracket = ({ 
+    type, 
+    index, 
+    total, 
+    highlight,
+    onAdd,
+    showAdd
+}: { 
+    type: 'left' | 'right', 
+    index: number, 
+    total: number, 
+    highlight?: boolean,
+    onAdd: () => void,
+    showAdd: boolean
+}) => {
+    const lineColor = highlight ? "border-blue-500" : "border-gray-300";
+    const lineBg = highlight ? "bg-blue-500" : "bg-gray-300";
+    const zIndex = highlight ? "z-20" : "z-0";
+
+    // Single Chain Case - Straight Line
+    if (total <= 1) {
+        return (
+            <div className={`flex-1 min-w-[2rem] flex items-center justify-center shrink-0 ${zIndex} relative group/bracket`}>
+                <div className={`w-full h-[2px] ${lineBg} transition-colors duration-200`}></div>
+                <AddTaskButton 
+                    onClick={onAdd}
+                    visible={showAdd} // Show on hover of job OR bracket
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 group-hover/bracket:opacity-100 group-hover/bracket:scale-100 group-hover/bracket:pointer-events-auto"
+                />
+            </div>
+        );
+    }
+
+    const isFirst = index === 0;
+    const isLast = index === total - 1;
+
+    // Use fixed width for left bracket to enforce left alignment of parallel chains
+    // Use flex-1 for right bracket to fill the remaining space
+    const widthClass = type === 'left' ? "w-8" : "flex-1 min-w-[2rem]";
+
+    return (
+        <div className={`${widthClass} relative shrink-0 ${zIndex} group/bracket`}>
+            <div className="absolute inset-0 w-full h-full">
+                {type === 'left' ? (
+                    <>
+                        {/* Vertical Spines & Corners */}
+                        {isFirst ? (
+                            // Top Left Corner
+                            <div className={`absolute top-1/2 left-0 w-full h-1/2 border-l-[2px] border-t-[2px] ${lineColor} rounded-tl-xl transition-colors duration-200`}></div>
+                        ) : isLast ? (
+                            // Bottom Left Corner
+                            <div className={`absolute top-0 left-0 w-full h-1/2 border-l-[2px] border-b-[2px] ${lineColor} rounded-bl-xl transition-colors duration-200`}></div>
+                        ) : (
+                            // Middle T-Junction (Vertical + Horizontal)
+                            <>
+                                <div className={`absolute top-0 left-0 w-[2px] h-full ${lineBg} transition-colors duration-200`}></div>
+                                <div className={`absolute top-1/2 left-0 w-full h-[2px] ${lineBg} -translate-y-1/2 transition-colors duration-200`}></div>
+                            </>
+                        )}
+                        
+                        {/* Add Button on Horizontal Segment */}
+                        <AddTaskButton 
+                            onClick={onAdd}
+                            visible={showAdd}
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 group-hover/bracket:opacity-100 group-hover/bracket:scale-100 group-hover/bracket:pointer-events-auto"
+                        />
+                    </>
+                ) : (
+                    <>
+                         {/* Vertical Spines & Corners */}
+                         {isFirst ? (
+                            // Top Right Corner
+                            <div className={`absolute top-1/2 right-0 w-full h-1/2 border-r-[2px] border-t-[2px] ${lineColor} rounded-tr-xl transition-colors duration-200`}></div>
+                        ) : isLast ? (
+                            // Bottom Right Corner
+                            <div className={`absolute top-0 right-0 w-full h-1/2 border-r-[2px] border-b-[2px] ${lineColor} rounded-br-xl transition-colors duration-200`}></div>
+                        ) : (
+                            // Middle T-Junction
+                            <>
+                                <div className={`absolute top-0 right-0 w-[2px] h-full ${lineBg} transition-colors duration-200`}></div>
+                                <div className={`absolute top-1/2 right-0 w-full h-[2px] ${lineBg} -translate-y-1/2 transition-colors duration-200`}></div>
+                            </>
+                        )}
+
+                        {/* Add Button on Horizontal Segment */}
+                        <AddTaskButton 
+                            onClick={onAdd}
+                            visible={showAdd}
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 group-hover/bracket:opacity-100 group-hover/bracket:scale-100 group-hover/bracket:pointer-events-auto"
+                        />
+                    </>
+                )}
+            </div>
+        </div>
+    );
 };
 
 
@@ -99,12 +224,10 @@ const PipelineSettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('flow_config');
   const [yamlMode, setYamlMode] = useState(false);
   
-  // Initialize from location state (template) or fallback to default
   const [stages, setStages] = useState<Stage[]>(() => {
     if (location.state && location.state.templateStages) {
         return location.state.templateStages.map((s: Stage) => ({ ...s, width: calculateStageWidth(s.jobs || []) }));
     }
-    // Deep copy to avoid mutating default immediately on load
     return JSON.parse(JSON.stringify(DEFAULT_PIPELINE_DETAIL.stages)).map((s: Stage) => ({ ...s, width: calculateStageWidth(s.jobs || []) }));
   });
 
@@ -115,24 +238,32 @@ const PipelineSettings: React.FC = () => {
     return DEFAULT_PIPELINE_DETAIL.name;
   });
 
-  // Source State
   const [sources, setSources] = useState<Source[]>([
       { id: 'src-1', type: 'Codeup', name: 'flow-example/spring-boot', repo: 'flow-example/spring-boot', branch: 'master' }
   ]);
   const [showSourceModal, setShowSourceModal] = useState(false);
   
-  // --- Edit Job State ---
   const [editingJob, setEditingJob] = useState<{ stageId: string, job: Job } | null>(null);
-
-  // --- Save State ---
   const [isSaving, setIsSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
-
-  // --- Drag and Drop State ---
   const [draggedJob, setDraggedJob] = useState<{ stageId: string, index: number } | null>(null);
-  
-  // --- Resizing State ---
   const [resizing, setResizing] = useState<{ stageId: string, startX: number, startWidth: number } | null>(null);
+  const [hoveredJobId, setHoveredJobId] = useState<string | null>(null);
+  
+  const getJobRelation = (jobId: string) => {
+      if (!hoveredJobId || draggedJob || resizing) return 'none';
+      if (jobId === hoveredJobId) return 'hovered';
+      
+      const hoveredJob = stages.flatMap(s => s.jobs).find(j => j.id === hoveredJobId);
+      if (!hoveredJob) return 'none';
+
+      if (hoveredJob.dependencies?.includes(jobId)) return 'upstream';
+
+      const currentJob = stages.flatMap(s => s.jobs).find(j => j.id === jobId);
+      if (currentJob?.dependencies?.includes(hoveredJobId)) return 'downstream';
+
+      return 'none';
+  };
 
   const mockYaml = `name: ${pipelineName}
 sources:
@@ -141,41 +272,25 @@ stages:
 ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - task: ${j.name}${j.dependencies?.length ? `\n        needs: [${j.dependencies.join(', ')}]` : ''}`).join('\n')}`).join('\n')}
 `;
 
-  // --- Save Handler ---
   const handleSave = async () => {
       setIsSaving(true);
-      
-      // Simulate network request
       await new Promise(resolve => setTimeout(resolve, 800));
-
-      // Persist changes to the mock data "backend"
       DEFAULT_PIPELINE_DETAIL.name = pipelineName;
-      // We perform a deep copy to ensure the reference is updated but data is preserved
       DEFAULT_PIPELINE_DETAIL.stages = JSON.parse(JSON.stringify(stages));
-
       setIsSaving(false);
       setShowToast(true);
-
-      // Hide toast after 3 seconds
-      setTimeout(() => {
-          setShowToast(false);
-      }, 3000);
+      setTimeout(() => setShowToast(false), 3000);
   };
 
-  // --- Resize Logic ---
   useEffect(() => {
     let animationFrameId: number;
-
     const handleMouseMove = (e: MouseEvent) => {
       if (!resizing) return;
-
-      // Use requestAnimationFrame for smoother resizing
       cancelAnimationFrame(animationFrameId);
       animationFrameId = requestAnimationFrame(() => {
         const delta = e.clientX - resizing.startX;
         setStages(prev => prev.map(s => {
           if (s.id === resizing.stageId) {
-            // Minimum width constraint of 280px
             return { ...s, width: Math.max(280, resizing.startWidth + delta) };
           }
           return s;
@@ -196,7 +311,7 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none'; // Prevent text selection while resizing
+      document.body.style.userSelect = 'none';
     }
 
     return () => {
@@ -211,11 +326,10 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
     setResizing({
       stageId: stage.id,
       startX: e.clientX,
-      startWidth: stage.width || 320
+      startWidth: stage.width || 300
     });
   };
 
-  // --- Auto Fit Stage Width ---
   const handleAutoFitStage = (stageId: string) => {
       const stage = stages.find(s => s.id === stageId);
       if (!stage) return;
@@ -224,34 +338,22 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
       setStages(prev => prev.map(s => s.id === stageId ? { ...s, width: newWidth } : s));
   };
 
-  // --- Fit View Logic (Global) ---
   const handleFitView = () => {
     if (!containerRef.current || stages.length === 0) return;
-
     const containerWidth = containerRef.current.clientWidth;
-    const padding = 64; 
-    const sourcesArea = 320 + 32; 
-    const startConnector = 48; 
-    const endPlaceholder = 32 + 48 + 192; 
-    const connectorWidth = 64; 
-    const totalConnectorsWidth = (stages.length > 0 ? (stages.length - 1) * connectorWidth : 0);
-
-    const usedWidth = padding + sourcesArea + startConnector + endPlaceholder + totalConnectorsWidth;
+    const usedWidth = 464 + (stages.length > 0 ? (stages.length - 1) * 64 : 0);
     const availableWidth = containerWidth - usedWidth;
-
-    const newWidth = Math.max(320, availableWidth / stages.length);
-
+    const newWidth = Math.max(300, availableWidth / stages.length);
     setStages(prev => prev.map(s => ({ ...s, width: newWidth })));
   };
 
-  // --- Drag and Drop Logic ---
   const handleDragStart = (e: React.DragEvent, stageId: string, index: number) => {
     setDraggedJob({ stageId, index });
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); // Allow drop
+    e.preventDefault();
   };
 
   const handleDrop = (e: React.DragEvent, targetStageId: string) => {
@@ -264,27 +366,20 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
 
     if (sourceStageIdx === -1 || targetStageIdx === -1) return;
 
-    // Remove from source
     const [movedJob] = newStages[sourceStageIdx].jobs.splice(draggedJob.index, 1);
     
-    // If moved to a different stage, clear dependencies to avoid broken links
     if (sourceStageIdx !== targetStageIdx) {
         movedJob.dependencies = [];
     }
 
-    // Add to target stage (append to end as a new parallel root)
     newStages[targetStageIdx].jobs.push(movedJob);
-
-    // Recalculate widths to recover (shrink) source or expand target
     newStages[sourceStageIdx].width = calculateStageWidth(newStages[sourceStageIdx].jobs);
-    // For target, we generally expand if needed, but allow it to stay larger if manually resized
     newStages[targetStageIdx].width = Math.max(newStages[targetStageIdx].width || 0, calculateStageWidth(newStages[targetStageIdx].jobs));
 
     setStages(newStages);
     setDraggedJob(null);
   };
 
-  // --- CRUD Handlers ---
   const handleAddStage = () => {
     handleAddStageAt(stages.length);
   };
@@ -294,14 +389,13 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
       id: `stage-${Date.now()}`,
       name: 'New Stage',
       jobs: [],
-      width: 320
+      width: 300
     };
     const newStages = [...stages];
     newStages.splice(index, 0, newStage);
     setStages(newStages);
   };
 
-  // Add Serial Task within the SAME stage
   const handleAddSerialTask = (stageId: string, anchorJob: Job, side: 'left' | 'right') => {
       const newJob: Job = {
           id: `job-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -319,10 +413,7 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
           const isLocal = (id: string) => s.jobs.some(j => j.id === id);
 
           if (side === 'right') {
-              // Anchor -> New
               newJob.dependencies = [anchorJob.id];
-              
-              // Find jobs that depended on Anchor, update them to depend on New
               newJobs = newJobs.map(j => {
                   if (j.dependencies?.includes(anchorJob.id)) {
                       return {
@@ -335,14 +426,9 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
               newJobs.push(newJob);
 
           } else {
-              // New -> Anchor
-              // New takes Anchor's dependencies
               const localDeps = anchorJob.dependencies?.filter(isLocal) || [];
               const remoteDeps = anchorJob.dependencies?.filter(d => !isLocal(d)) || [];
-              
               newJob.dependencies = [...localDeps];
-              
-              // Anchor depends on New
               newJobs = newJobs.map(j => {
                   if (j.id === anchorJob.id) {
                        return { ...j, dependencies: [newJob.id, ...remoteDeps] };
@@ -352,8 +438,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
               newJobs.push(newJob);
           }
 
-          // Automatically adjust width to fit the new serial task
-          // We take the MAX of current width and required width to avoid shrinking if user manually expanded it
           const requiredWidth = calculateStageWidth(newJobs);
           const currentWidth = s.width || 0;
           const newWidth = Math.max(currentWidth, requiredWidth);
@@ -380,7 +464,8 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
     };
     setStages(stages.map(s => {
       if (s.id === stageId) {
-        return { ...s, jobs: [...s.jobs, newJob] };
+        const newJobs = [...s.jobs, newJob];
+        return { ...s, jobs: newJobs, width: Math.max(s.width || 0, calculateStageWidth(newJobs)) };
       }
       return s;
     }));
@@ -389,15 +474,12 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
   const handleDeleteJob = (stageId: string, jobId: string) => {
     setStages(stages.map(s => {
       if (s.id === stageId) {
-        // Remove job and cleanup dependencies
         const filteredJobs = s.jobs.filter(j => j.id !== jobId).map(j => ({
             ...j,
             dependencies: j.dependencies?.filter(d => d !== jobId)
         }));
         
-        // Recalculate width to fit content (recover width)
         const newWidth = calculateStageWidth(filteredJobs);
-
         return { ...s, jobs: filteredJobs, width: newWidth };
       }
       return s;
@@ -429,7 +511,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
   return (
     <Layout>
       <div className="flex flex-col h-full bg-gray-50 relative">
-        {/* Header */}
         <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3 shrink-0">
              <button onClick={() => navigate(`/pipeline/${id}`)} className="text-gray-500 hover:text-gray-900">
                 <Icons.ChevronRight className="rotate-180" size={20} />
@@ -438,7 +519,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-            {/* Settings Sidebar */}
             <div className="w-64 bg-white border-r border-gray-200 py-4 flex flex-col gap-1 shrink-0 z-10 overflow-y-auto">
                 <SettingLink active={activeTab === 'basic'} onClick={() => setActiveTab('basic')} label="Basic Information" />
                 <SettingLink active={activeTab === 'flow_config'} onClick={() => setActiveTab('flow_config')} label="Flow Configuration" />
@@ -447,7 +527,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                 <SettingLink active={activeTab === 'cache'} onClick={() => setActiveTab('cache')} label="Cache Settings" />
             </div>
 
-            {/* Content Area */}
             <div className="flex-1 overflow-auto p-8 bg-gray-50">
                 {activeTab === 'flow_config' && (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full overflow-hidden">
@@ -533,7 +612,7 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
 
                                     {/* Start Connector */}
                                     <div className="w-12 flex items-center justify-center relative shrink-0">
-                                         <div className="w-full h-0.5 bg-gray-300"></div>
+                                         <div className="w-full h-[2px] bg-gray-300"></div>
                                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
                                             <Icons.ChevronRight className="text-gray-400 bg-gray-100 rounded-full p-0.5" size={20} />
                                          </div>
@@ -542,21 +621,19 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                     {/* Stages Render Loop */}
                                     {stages.map((stage, idx) => {
                                         const isResizingThis = resizing?.stageId === stage.id;
-                                        
+                                        const chains = organizeJobsIntoChains(stage.jobs);
+                                        const hasMultipleChains = chains.length > 1;
+
                                         return (
                                         <div key={stage.id} className="flex h-full shrink-0 group/stage">
                                             {/* Connector & Insert Button (Before Stage) */}
                                             {idx > 0 && (
                                                 <div className="w-16 flex flex-col items-center justify-center relative shrink-0 group/connector">
-                                                     <div className="w-full h-0.5 bg-gray-300 absolute top-24"></div>
-                                                     {/* Horizontal connecting line logic for lower items is implied/simplified here */}
-                                                     <button 
+                                                     <div className="w-full h-[2px] bg-gray-300 absolute top-24"></div>
+                                                     <AddTaskButton 
                                                         onClick={() => handleAddStageAt(idx)}
-                                                        className="z-10 w-6 h-6 bg-white border border-gray-300 text-gray-400 rounded-full flex items-center justify-center shadow-sm hover:border-blue-500 hover:text-blue-500 hover:scale-110 transition-all opacity-0 group-hover/connector:opacity-100 absolute top-24 -translate-y-1/2"
-                                                        title="Insert Stage Here"
-                                                     >
-                                                         <Icons.Plus size={14} />
-                                                     </button>
+                                                        className="absolute top-24 -translate-y-1/2 opacity-0 group-hover/connector:opacity-100 group-hover/connector:scale-100"
+                                                     />
                                                 </div>
                                             )}
 
@@ -584,67 +661,120 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                 </div>
 
                                                 <div 
-                                                    className={`flex-1 bg-gray-200/50 rounded-xl border p-3 flex flex-col gap-4 overflow-y-auto overflow-x-auto items-center ${isResizingThis ? 'border-blue-500 bg-blue-50/10' : 'border-gray-200'}`}
+                                                    className={`flex-1 bg-gray-200/50 rounded-xl border px-2 py-3 flex flex-col gap-0 overflow-y-auto overflow-x-auto items-center relative ${isResizingThis ? 'border-blue-500 bg-blue-50/10' : 'border-gray-200'}`}
                                                     onDragOver={handleDragOver}
                                                     onDrop={(e) => handleDrop(e, stage.id)}
                                                 >
-                                                    {/* Jobs Rendering with Chains */}
-                                                    {organizeJobsIntoChains(stage.jobs).map((chain, chainIdx) => (
-                                                        <div key={chainIdx} className="flex flex-row items-center gap-2">
-                                                            {chain.map((job, jobIdx) => (
-                                                                <React.Fragment key={job.id}>
-                                                                    {jobIdx > 0 && (
-                                                                        <div className="w-6 h-0.5 bg-gray-400 shrink-0"></div>
-                                                                    )}
-                                                                    <div 
-                                                                        draggable
-                                                                        onClick={() => setEditingJob({ stageId: stage.id, job })}
-                                                                        onDragStart={(e) => handleDragStart(e, stage.id, stage.jobs.indexOf(job))}
-                                                                        className="bg-white p-3 rounded border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 cursor-pointer relative group/job w-56 shrink-0 transition-shadow"
-                                                                    >
-                                                                        <div className="flex justify-between items-start mb-2">
-                                                                            <div className="flex items-center gap-2">
-                                                                                <Icons.Code size={14} className="text-gray-400" />
-                                                                                <span className="font-semibold text-gray-800 text-sm truncate max-w-[180px]" title={job.name}>{job.name}</span>
+                                                    {hasMultipleChains && (
+                                                        <div className="absolute top-0 bottom-0 left-0 right-0 pointer-events-none z-0">
+                                                            <div className="absolute top-[50%] left-0 w-3 h-[2px] bg-gray-300 -translate-y-1/2"></div>
+                                                            <div className="absolute top-[50%] right-0 w-3 h-[2px] bg-gray-300 -translate-y-1/2"></div>
+                                                        </div>
+                                                    )}
+
+                                                    {chains.map((chain, chainIdx) => {
+                                                        const firstJobRel = getJobRelation(chain[0].id);
+                                                        const lastJobRel = getJobRelation(chain[chain.length-1].id);
+                                                        
+                                                        const highlightLeft = firstJobRel === 'hovered' || firstJobRel === 'downstream';
+                                                        const highlightRight = lastJobRel === 'hovered' || lastJobRel === 'upstream';
+                                                        
+                                                        const isFirstChainJobHovered = getJobRelation(chain[0].id) === 'hovered';
+                                                        const isLastChainJobHovered = getJobRelation(chain[chain.length-1].id) === 'hovered';
+
+                                                        return (
+                                                        <div key={chainIdx} className="flex flex-row items-stretch w-full z-10">
+                                                            
+                                                            <ChainBracket 
+                                                                type="left" 
+                                                                index={chainIdx} 
+                                                                total={chains.length} 
+                                                                highlight={highlightLeft}
+                                                                onAdd={() => handleAddSerialTask(stage.id, chain[0], 'left')}
+                                                                showAdd={isFirstChainJobHovered}
+                                                            />
+
+                                                            <div className="flex flex-row items-center gap-0 w-auto justify-center py-3">
+                                                                {chain.map((job, jobIdx) => {
+                                                                    const jobRelation = getJobRelation(job.id);
+                                                                    const isJobHovered = jobRelation === 'hovered';
+                                                                    
+                                                                    let highlightConnector = false;
+                                                                    if (jobIdx > 0) {
+                                                                        const prevJob = chain[jobIdx - 1];
+                                                                        const prevRel = getJobRelation(prevJob.id);
+                                                                        highlightConnector = (prevRel === 'upstream' && jobRelation === 'hovered') || 
+                                                                                             (prevRel === 'hovered' && jobRelation === 'downstream');
+                                                                    }
+
+                                                                    let cardBorderClass = "border-gray-200 hover:border-blue-300";
+                                                                    let cardRingClass = "";
+                                                                    let cardShadowClass = "shadow-sm hover:shadow-md";
+
+                                                                    if (jobRelation === 'hovered') {
+                                                                        cardBorderClass = "border-blue-600";
+                                                                        cardRingClass = "ring-2 ring-blue-100";
+                                                                        cardShadowClass = "shadow-lg";
+                                                                    } else if (jobRelation === 'upstream') {
+                                                                        cardBorderClass = "border-indigo-400";
+                                                                        cardRingClass = "ring-1 ring-indigo-200";
+                                                                    } else if (jobRelation === 'downstream') {
+                                                                        cardBorderClass = "border-purple-400";
+                                                                        cardRingClass = "ring-1 ring-purple-200";
+                                                                    }
+
+                                                                    return (
+                                                                    <React.Fragment key={job.id}>
+                                                                        {jobIdx > 0 && (
+                                                                            <JobConnector 
+                                                                                active={highlightConnector || isJobHovered || getJobRelation(chain[jobIdx-1].id) === 'hovered'} 
+                                                                                onClick={() => handleAddSerialTask(stage.id, chain[jobIdx-1], 'right')}
+                                                                                highlight={highlightConnector}
+                                                                            />
+                                                                        )}
+
+                                                                        <div 
+                                                                            draggable
+                                                                            onMouseEnter={() => setHoveredJobId(job.id)}
+                                                                            onMouseLeave={() => setHoveredJobId(null)}
+                                                                            onClick={() => setEditingJob({ stageId: stage.id, job })}
+                                                                            onDragStart={(e) => handleDragStart(e, stage.id, stage.jobs.indexOf(job))}
+                                                                            className={`bg-white p-3 rounded border cursor-pointer relative group/job w-56 shrink-0 transition-all duration-200 ${cardBorderClass} ${cardRingClass} ${cardShadowClass}`}
+                                                                        >
+                                                                            <div className="flex justify-between items-start mb-2">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <Icons.Code size={14} className="text-gray-400" />
+                                                                                    <span className="font-semibold text-gray-800 text-sm truncate max-w-[180px]" title={job.name}>{job.name}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-1 text-xs text-gray-400">
+                                                                                {job.dependencies && job.dependencies.length > 0 && <Icons.Link size={10} />}
+                                                                                <span>{job.type}</span>
                                                                             </div>
                                                                         </div>
-                                                                        <div className="flex items-center gap-1 text-xs text-gray-400">
-                                                                            {job.dependencies && job.dependencies.length > 0 && <Icons.Link size={10} />}
-                                                                            <span>{job.type}</span>
-                                                                        </div>
+                                                                    </React.Fragment>
+                                                                )})}
+                                                            </div>
 
-                                                                        {/* Serial Insert Buttons */}
-                                                                        {/* Left */}
-                                                                        <button 
-                                                                            onClick={(e) => { e.stopPropagation(); handleAddSerialTask(stage.id, job, 'left'); }}
-                                                                            className="absolute left-0 top-1/2 -translate-x-[150%] -translate-y-1/2 w-5 h-5 bg-white border border-gray-300 text-blue-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/job:opacity-100 hover:scale-110 z-20 transition-all"
-                                                                            title="Insert Task Before"
-                                                                        >
-                                                                            <Icons.Plus size={10} />
-                                                                        </button>
-                                                                        {/* Right */}
-                                                                        <button 
-                                                                            onClick={(e) => { e.stopPropagation(); handleAddSerialTask(stage.id, job, 'right'); }}
-                                                                            className="absolute right-0 top-1/2 translate-x-[150%] -translate-y-1/2 w-5 h-5 bg-white border border-gray-300 text-blue-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/job:opacity-100 hover:scale-110 z-20 transition-all"
-                                                                            title="Insert Task After"
-                                                                        >
-                                                                            <Icons.Plus size={10} />
-                                                                        </button>
-                                                                    </div>
-                                                                </React.Fragment>
-                                                            ))}
+                                                            <ChainBracket 
+                                                                type="right" 
+                                                                index={chainIdx} 
+                                                                total={chains.length}
+                                                                highlight={highlightRight}
+                                                                onAdd={() => handleAddSerialTask(stage.id, chain[chain.length-1], 'right')}
+                                                                showAdd={isLastChainJobHovered}
+                                                            />
                                                         </div>
-                                                    ))}
+                                                    )})}
 
                                                     <button 
                                                         onClick={() => handleAddJob(stage.id)}
-                                                        className="w-56 py-2 border border-dashed border-gray-300 rounded text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-white transition-all text-xs font-medium flex items-center justify-center gap-1 shrink-0"
+                                                        className="w-56 py-2 border border-dashed border-gray-300 rounded text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-white transition-all text-xs font-medium flex items-center justify-center gap-1 shrink-0 mt-4"
                                                     >
                                                         <Icons.Plus size={12} /> Add Parallel Task
                                                     </button>
                                                 </div>
 
-                                                {/* Resize Handle */}
                                                 <div 
                                                     className="absolute top-0 right-0 bottom-0 w-4 -mr-2 cursor-col-resize flex justify-center z-20 group/resizer"
                                                     onMouseDown={(e) => startResize(e, stage)}
@@ -653,7 +783,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                                 >
                                                     <div className={`w-1 h-full transition-colors rounded-full ${isResizingThis ? 'bg-blue-600' : 'bg-transparent group-hover/resizer:bg-blue-400'}`}></div>
                                                     
-                                                    {/* Visual Width Indicator when resizing */}
                                                     {isResizingThis && (
                                                         <div className="absolute top-1/2 left-4 transform -translate-y-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-50 font-mono">
                                                             {Math.round(stage.width || 0)}px {stage.width && stage.width <= 280 ? '(Min)' : ''}
@@ -664,10 +793,9 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                                         </div>
                                     )})}
 
-                                    {/* Add New Stage Placeholder */}
                                     <div className="flex items-start h-full pl-8 shrink-0">
                                         <div className="mt-24 flex items-center">
-                                             <div className="w-12 h-0.5 bg-gray-300"></div>
+                                             <div className="w-12 h-[2px] bg-gray-300"></div>
                                              <button 
                                                 onClick={handleAddStage}
                                                 className="w-48 h-12 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all gap-2"
@@ -712,7 +840,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
                     </div>
                 )}
 
-                {/* Placeholders for other tabs */}
                 {['triggers', 'variables', 'cache'].includes(activeTab) && (
                     <div className="flex items-center justify-center h-64 bg-white rounded-lg border border-gray-200">
                         <p className="text-gray-400">Settings for {activeTab} coming soon...</p>
@@ -721,9 +848,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
             </div>
         </div>
 
-        {/* --- Modals --- */}
-        
-        {/* Add Source Modal */}
         {showSourceModal && (
             <AddSourceModal 
                 onClose={() => setShowSourceModal(false)} 
@@ -731,7 +855,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
             />
         )}
 
-        {/* Task Edit Modal */}
         {editingJob && (
             <TaskEditModal
                 job={editingJob.job}
@@ -746,7 +869,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
             />
         )}
 
-        {/* Toast Notification */}
         {showToast && (
             <div className="fixed bottom-6 right-6 bg-gray-800 text-white px-4 py-3 rounded shadow-lg flex items-center gap-3 animate-slide-up z-50">
                 <Icons.CheckCircle className="text-green-400" size={20} />
@@ -759,8 +881,6 @@ ${stages.map(s => `  - name: ${s.name}\n    jobs:\n${s.jobs.map(j => `      - ta
   );
 };
 
-// --- Sub-components ---
-
 const SettingLink = ({ active, onClick, label }: { active: boolean, onClick: () => void, label: string }) => (
     <div 
         onClick={onClick}
@@ -771,7 +891,6 @@ const SettingLink = ({ active, onClick, label }: { active: boolean, onClick: () 
     </div>
 );
 
-// Add Source Modal Component
 const AddSourceModal = ({ onClose, onAdd }: { onClose: () => void, onAdd: (s: Source) => void }) => {
     const [selectedType, setSelectedType] = useState('Github');
     const [repoUrl, setRepoUrl] = useState('');
@@ -797,7 +916,6 @@ const AddSourceModal = ({ onClose, onAdd }: { onClose: () => void, onAdd: (s: So
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm">
             <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl h-[600px] flex overflow-hidden">
-                {/* Sidebar */}
                 <div className="w-48 bg-gray-50 border-r border-gray-200 p-4">
                     <h3 className="font-bold text-gray-700 mb-4 px-2">Data Sources</h3>
                     <div className="space-y-1">
@@ -807,7 +925,6 @@ const AddSourceModal = ({ onClose, onAdd }: { onClose: () => void, onAdd: (s: So
                     </div>
                 </div>
 
-                {/* Main Content */}
                 <div className="flex-1 flex flex-col">
                     <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                          <h3 className="font-bold text-gray-800">Add Pipeline Source</h3>
@@ -869,7 +986,6 @@ const AddSourceModal = ({ onClose, onAdd }: { onClose: () => void, onAdd: (s: So
     );
 };
 
-// Task Edit Modal Component
 const TaskEditModal = ({ job, stageId, allJobs, onClose, onSave, onDelete }: { job: Job, stageId: string, allJobs: Job[], onClose: () => void, onSave: (j: Job) => void, onDelete: () => void }) => {
     const [name, setName] = useState(job.name);
     const [type, setType] = useState(job.type);
@@ -888,7 +1004,6 @@ const TaskEditModal = ({ job, stageId, allJobs, onClose, onSave, onDelete }: { j
         }
     };
 
-    // Filter out self from potential dependencies
     const availableDependencies = allJobs.filter(j => j.id !== job.id);
 
     return (
@@ -937,7 +1052,6 @@ const TaskEditModal = ({ job, stageId, allJobs, onClose, onSave, onDelete }: { j
                                 </select>
                             </div>
                             
-                            {/* Dependencies Section */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Dependencies (Same Stage)</label>
                                 <div className="border border-gray-200 rounded-md p-3 max-h-40 overflow-y-auto bg-gray-50">
